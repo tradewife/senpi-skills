@@ -1,12 +1,13 @@
-[SKILL.md](https://github.com/user-attachments/files/25499918/SKILL.md)
+[SKILL (2).md](https://github.com/user-attachments/files/25500127/SKILL.2.md)
 ---
 name: wolf-strategy
 description: >-
-  Aggressive 2-slot autonomous trading strategy for Hyperliquid perps.
-  IMMEDIATE_MOVER as primary entry trigger, mechanical DSL exits,
-  concentration over diversification. 7-cron architecture with race
-  condition prevention. Scales to any budget ($500+).
-  Proven: +$750 across 14 trades, 64% win rate.
+  Fully autonomous 2-slot trading strategy for Hyperliquid perps.
+  The WOLF hunts for its human — scans, enters, exits, and rotates
+  positions without asking permission. IMMEDIATE_MOVER as primary entry
+  trigger, mechanical DSL exits, concentration over diversification.
+  7-cron architecture with race condition prevention. Scales to any
+  budget ($500+). Proven: +$750 across 14 trades, 64% win rate.
   Use when running aggressive autonomous trading with concentrated
   positions, IMMEDIATE_MOVER entries, or 2-slot position management.
 license: Apache-2.0
@@ -22,12 +23,27 @@ metadata:
 
 # WOLF v3.1 — Aggressive Autonomous Trading
 
-2-slot concentrated position management. Mechanical exits, discretionary entries. DSL v4 handles all exit logic — human/AI judgment on entry signals only. Scales to any budget from $500 to $50k+.
+The WOLF hunts for its human. It scans, enters, exits, and rotates positions autonomously — no permission needed. When criteria are met, the WOLF acts. Speed is edge.
+
+2-slot concentrated position management. Mechanical exits, autonomous entries. DSL v4 handles all exit logic. The agent evaluates entry signals and acts immediately when the checklist passes. Scales to any budget from $500 to $50k+.
 
 **Proven:** +$750 realized across 14 trades, 64% win rate in a single session ($6.5k budget).
 
+## Autonomy Rules
+
+**The WOLF operates autonomously by default.** The agent does NOT ask for permission to:
+- Open a position when the entry checklist passes
+- Close a position when DSL triggers, conviction collapses, or dead weight is detected
+- Rotate out of a weak position into a stronger signal
+- Cut losses when drawdown limits are hit
+
+**The agent DOES notify the human** (via Telegram) after every action — entries, exits, rotations, and alerts. The human sees everything, but the WOLF doesn't wait.
+
+**The only exception:** If the human explicitly tells the agent to require approval before trades (e.g., "ask me before entering positions"), the agent switches to confirmation mode. This must be an explicit request — the default is fully autonomous.
+
 ## Core Design
 
+- **Fully autonomous** — scan, enter, exit, rotate without asking
 - **2 slots max** — concentration beats diversification
 - **Mechanical exits** via DSL v4 — no discretion on exits
 - **IMMEDIATE_MOVER** is the primary entry trigger (not scanner score)
@@ -122,7 +138,7 @@ The agent MUST calculate these from budget at setup — never use fixed dollar a
 
 ### Primary Signal: IMMEDIATE_MOVER
 
-Emerging Movers fires IMMEDIATE_MOVER when an asset jumps 10+ ranks from #25+ in a single 60-second scan. Act fast — don't wait for scanner confirmation.
+Emerging Movers fires IMMEDIATE_MOVER when an asset jumps 10+ ranks from #25+ in a single 60-second scan. **Act immediately** — don't wait for scanner confirmation, don't ask the human. If the checklist passes, enter the position.
 
 **Entry checklist:**
 1. IMMEDIATE_MOVER fired with `erratic: false` + `lowVelocity: false`
@@ -167,15 +183,21 @@ See [references/exit-rules.md](references/exit-rules.md) for complete exit logic
 
 ## Rotation Rules
 
-**Favor Rotation If:**
-- New IMMEDIATE_MOVER firing while current position is flat or slightly negative
-- Current position in Phase 1 with no tier hit after 30+ minutes
-- New opportunity scores 50+ points higher than current
+**The WOLF constantly evaluates whether each position deserves its slot.** Every scan cycle, every SM flip check, every cron tick — the agent asks: "Is this position still the best use of this slot, or would I be better off rotating into the new signal?" Dead weight is the enemy. A stagnant position that's going nowhere is costing you the opportunity to catch the next move.
 
-**Favor Hold If:**
-- Current position in DSL Tier 2+
-- Current position has strong and rising conviction
-- New opportunity hasn't been confirmed by scanner yet
+**Rotate immediately if ANY of these are true:**
+- New IMMEDIATE_MOVER firing while current position is flat or negative
+- Current position in Phase 1 with no tier hit after 30+ minutes — it's not moving, cut it
+- New opportunity scores 50+ points higher than current position's entry score
+- Current position has SM conviction 0 or declining conviction — the smart money left
+- Current position is negative and hourly trend has flipped against it
+
+**Hold only if ALL of these are true:**
+- Current position is in DSL Tier 2+ (profit is locked, let it run)
+- Current position has strong and rising SM conviction
+- No IMMEDIATE_MOVER is firing with better metrics
+
+**The bias is toward action.** When in doubt between holding a mediocre position and rotating into a fresh signal, rotate. The WOLF's proven edge comes from catching fast moves early — a position that's been flat for 30+ minutes has already told you it's not the one.
 
 ## Position Management & DSL
 
