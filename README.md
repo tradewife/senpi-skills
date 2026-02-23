@@ -12,16 +12,6 @@ Skills give your Senpi agent superpowers — pre-built trading strategies and to
 
 > **Tip:** Use top-tier AI models (Claude Opus or equivalent). Trading requires precision. Skills are optimized to use far fewer tokens than training your agent from scratch.
 
-## Install a skill (OpenClaw / ClawHub)
-
-```bash
-clawhub install dsl-dynamic-stop-loss
-clawhub install dsl-tight
-clawhub install opportunity-scanner
-clawhub install autonomous-trading
-clawhub install emerging-movers
-clawhub install whale-index
-clawhub install wolf-strategy
 ```
 
 ## Install a skill (agents)
