@@ -10,7 +10,7 @@ description: >-
   Handles entries, exits, rotation, and race condition prevention fully autonomously.
   Minimum 7x leverage required. Enter early on first jumps, not at confirmed peaks.
   Requires Senpi MCP connection, python3, mcporter CLI, and OpenClaw cron system.
-  Proven +$1,500 across 25+ trades at 65% win rate on $6.5k budget.
+  
 ---
 
 # WOLF v5 — Autonomous Trading Strategy
