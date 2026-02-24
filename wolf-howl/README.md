@@ -1,4 +1,4 @@
-[README.md](https://github.com/user-attachments/files/25506600/README.md)
+[howl-README.md](https://github.com/user-attachments/files/25532273/howl-README.md)
 # 🐺🌙 HOWL — Hunt, Optimize, Win, Learn
 
 The WOLF hunts all day. At night, it HOWLs — reviewing every trade, finding patterns, and sharpening itself for tomorrow.
@@ -9,12 +9,12 @@ Automated nightly self-improvement loop for the [WOLF strategy](../wolf-strategy
 
 Every night at 23:55 (configurable), an isolated sub-agent:
 
-1. **Gathers** — reads trade history, DSL state files, memory logs, scanner output
-2. **Analyzes** — per-trade breakdown: entry signal quality, DSL tier reached, close trigger, PnL
-3. **Computes** — win rate, profit factor, signal quality correlation, slot utilization, dead weight duration
-4. **Identifies** — patterns distinguishing winners from losers, DSL calibration, missed opportunities
+1. **Gathers** — reads trade history, DSL state files, memory logs, scanner output, FDR counter
+2. **Analyzes** — per-trade breakdown: entry signal quality, DSL tier reached, close trigger, PnL (gross and net), fees, holding duration
+3. **Computes** — win rate, profit factor (gross and net), FDR, signal quality correlation, holding period buckets, direction breakdown, slot utilization
+4. **Identifies** — patterns distinguishing winners from losers, fee drag, regime mismatches, monster trade dependency, rotation costs, DSL calibration
 5. **Reports** — structured report saved to `memory/howl-YYYY-MM-DD.md` + Telegram summary
-6. **Learns** — appends distilled insights to `MEMORY.md` for long-term strategy improvement
+6. **Learns** — appends distilled insights to `MEMORY.md`, checks for recurring suggestions across consecutive HOWLs (drift detection)
 
 ## What's Included
 
@@ -43,4 +43,5 @@ python3 scripts/howl-setup.py --wallet {WALLET} --chat-id {CHAT_ID}
 
 | Version | Date | Changes |
 |---------|------|---------|
+| v2.0 | 2026-02-24 | FDR analysis, holding period buckets, direction regime detection, monster trade dependency, rotation cost tracking, cumulative drift detection, gross vs net profit factor separation |
 | v1.0 | 2026-02-24 | Initial release — nightly retro with pattern analysis and improvement suggestions |
