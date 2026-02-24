@@ -1,4 +1,5 @@
-# WOLF v4 Cron Templates
+[cron-templates.md](https://github.com/user-attachments/files/25528050/cron-templates.md)
+# WOLF v5 Cron Templates
 
 All crons use OpenClaw's systemEvent format:
 ```json
@@ -25,40 +26,67 @@ Replace these placeholders in all templates:
 
 ---
 
-## 1. Emerging Movers (every 60s)
+## 1. Emerging Movers (every 90s)
 
 ```
-WOLF v3 Scanner: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/emerging-movers.py`, parse JSON.
+WOLF v5 Scanner: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/emerging-movers.py`, parse JSON.
 
-MANDATE: Hunt runners before they peak. v3 IMMEDIATE signals + DSL.
-1. **IMMEDIATE_MOVER**: 10+ rank jump from #25+ in ONE scan → OPEN ${MARGIN} margin, {LEVERAGE}x leverage, DSL on. Act on FIRST jump.
-2. **NEW_ENTRY_DEEP**: Appears in top 20 from nowhere → OPEN ${MARGIN} margin, {LEVERAGE}x leverage, DSL on.
-3. **CONTRIB_EXPLOSION**: 3x+ contrib in one scan → OPEN ${MARGIN} margin, {LEVERAGE}x leverage, DSL on.
-4. Wallet: {WALLET} (strategy {STRATEGY_SHORT}). XYZ positions use leverageType ISOLATED on same wallet.
-5. Max {SLOTS} positions. Alert user on Telegram ({TELEGRAM}).
-6. Negative velocity or already-peaked signals = SKIP. Empty slot > mediocre position.
-7. **DEAD WEIGHT RULE**: If any open position has negative ROE AND SM conviction is against it (flipped, conv 1+) for 30+ minutes → CUT immediately and free the slot.
-8. **ROTATION RULE**: If slots are FULL and a new IMMEDIATE fires, compare it against current positions. Score: reason count + rank jump magnitude + contrib velocity. If new signal scores higher than weakest position's current momentum (ROE trend, SM conviction, contrib rank) → CUT weakest, OPEN new. Factors favoring rotation: new signal has 4+ reasons, weakest position is flat/negative ROE, weakest has low SM conviction (0-1). Factors favoring hold: current position is trending up with good ROE, SM conv 3+.
-9. If no actionable signals → HEARTBEAT_OK.
-10. **AUTO-DELEVER**: If account drops below ${DELEVER_THRESHOLD} → revert to max {SLOTS-1} positions, close weakest if {SLOTS} open.
+MANDATE: Enter EARLY on first jumps — before the peak, not at it. Speed is edge.
+
+SIGNAL PRIORITY (act on the FIRST one that fires):
+
+1. **FIRST_JUMP** (⚡ highest priority): `isFirstJump: true`. Asset jumped 10+ ranks from #25+ AND was not in previous top 50 (or was ≥ #30). ENTER IMMEDIATELY — ${MARGIN} margin, {LEVERAGE}x leverage. 2+ reasons is enough. vel > 0 is enough. Do NOT wait for confirmation. Do NOT require clean rank history. This IS the signal.
+
+2. **CONTRIB_EXPLOSION** (💥): `isContribExplosion: true`. 3x+ contrib spike from rank #20+. ENTER — ${MARGIN} margin, {LEVERAGE}x leverage. NEVER downgrade for erratic history. Often accompanies FIRST_JUMP for double confirmation.
+
+3. **IMMEDIATE_MOVER**: `isImmediate: true` (but not FIRST_JUMP). 10+ rank jump from #25+ in ONE scan. ENTER if not downgraded (check `erratic: false`, `lowVelocity: false`). ${MARGIN} margin, {LEVERAGE}x leverage.
+
+4. **NEW_ENTRY_DEEP**: Asset appears in top 20 from nowhere. ENTER — ${MARGIN} margin, {LEVERAGE}x leverage.
+
+5. **DEEP_CLIMBER**: `isDeepClimber: true`, steady climb, vel ≥ 0.03, 3+ reasons. Enter when it crosses top 20.
+
+RULES:
+- Wallet: {WALLET} (strategy {STRATEGY_SHORT}). XYZ positions use leverageType ISOLATED, dex "xyz".
+- Max {SLOTS} positions. Min 7x leverage (skip assets below 7x — check max-leverage.json).
+- Alert user on Telegram ({TELEGRAM}) after every action.
+- **ANTI-PATTERN: NEVER enter assets already at rank #1-10 for 2+ scans.** That's the top, not the entry.
+- **ANTI-PATTERN: 4+ reasons at rank #5 = SKIP.** Asset already peaked.
+- **DEAD WEIGHT RULE**: Negative ROE + SM conviction against it for 30+ min → CUT immediately.
+- **ROTATION RULE**: If slots FULL and FIRST_JUMP fires → compare against weakest position. If weakest has flat/negative ROE with SM conv 0-1 → CUT weakest, OPEN new. If weakest is Tier 2+ or SM conv 3+ → HOLD.
+- If no actionable signals → HEARTBEAT_OK.
+- **AUTO-DELEVER**: Account below ${DELEVER_THRESHOLD} → max {SLOTS-1} positions, close weakest.
 ```
 
 ---
 
-## 2. DSL Per-Position (every 180s) — Created per trade
+## 2. DSL Combined Runner (every 3min)
 
 ```
-[DSL] Run DSL check for {ASSET}: `DSL_STATE_FILE=/data/workspace/dsl-state-WOLF-{ASSET}.json PYTHONUNBUFFERED=1 python3 {SCRIPTS}/dsl-v4.py`. Parse JSON output. If close_triggered=true, close {ASSET} (coin={COIN}, strategyWalletAddress={WALLET}), alert user on Telegram ({TELEGRAM}), deactivate state file, disable this cron. If active=false, HEARTBEAT_OK.
-```
+WOLF DSL: Run `DSL_STATE_DIR=/data/workspace PYTHONUNBUFFERED=1 python3 {SCRIPTS}/dsl-combined.py`, parse JSON.
 
-**Note:** `{COIN}` = asset name for crypto (e.g. `PAXG`), or `xyz:ASSET` for XYZ assets (e.g. `xyz:SILVER`).
+This checks ALL active positions in one pass. Parse the `results` array.
+
+FOR EACH position in results:
+- If `closed: true` → alert user on Telegram ({TELEGRAM}) with asset, direction, close_reason, upnl. Evaluate: empty slot for next signal?
+- If `tier_changed: true` → note the tier upgrade (useful for portfolio context).
+- If `phase1_autocut: true` and `closed: true` → position was cut for Phase 1 timeout (90min) or weak peak (45min). Alert user.
+- If `status: "pending_close"` → close failed, will retry next run. Alert user if first occurrence.
+
+If `any_closed: true` → at least one position was closed this run. Check for new signals.
+If all positions active with no alerts → HEARTBEAT_OK.
+```
 
 ---
 
 ## 3. SM Flip Detector (every 5min)
 
 ```
-WOLF SM Check (warning-only): Run `python3 {SCRIPTS}/sm-flip-check.py`, parse JSON. If any alert has conviction 4+ SHORT against our LONG (or vice versa) with 100+ traders → CUT the position (don't flip, just close and free the slot for runners). conviction 2-3 = note but don't act. If hasFlipSignal=false → HEARTBEAT_OK.
+WOLF SM Check: Run `python3 {SCRIPTS}/sm-flip-check.py`, parse JSON.
+
+If any alert has conviction 4+ in the OPPOSITE direction of our position with 100+ traders → CUT the position immediately (don't flip, just close and free the slot). Set DSL state active: false.
+Conviction 2-3 = note but don't act unless position is also in negative ROE.
+Alert user on Telegram ({TELEGRAM}) for any cuts.
+If hasFlipSignal=false → HEARTBEAT_OK.
 ```
 
 ---
@@ -83,7 +111,7 @@ If no alerts needed → HEARTBEAT_OK.
 ## 5. Portfolio Update (every 15min)
 
 ```
-WOLF portfolio update: Get clearinghouse state for wallet {WALLET}. Send user a concise Telegram update ({TELEGRAM}). Code block table format. Include account value and position summary.
+WOLF portfolio update: Get clearinghouse state for wallet {WALLET}. Send user a concise Telegram update ({TELEGRAM}). Code block table format. Include account value, each position (asset, direction, ROE, PnL, DSL tier), and slot usage ({SLOTS} max).
 ```
 
 ---
@@ -93,15 +121,39 @@ WOLF portfolio update: Get clearinghouse state for wallet {WALLET}. Send user a 
 ```
 WOLF Health Check: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/job-health-check.py`, parse JSON.
 
-If any CRITICAL issues → fix immediately (deactivate orphan DSLs, create missing DSLs for unprotected positions, fix direction mismatches). Alert user on Telegram ({TELEGRAM}) for critical issues.
-If only WARNINGs → fix silently (deactivate orphans, note stale crons).
+If any CRITICAL issues → fix immediately:
+- Orphan DSL state files (active: true but no matching position) → set active: false
+- Positions without DSL state files → create dsl-state-WOLF-{ASSET}.json with correct config
+- Direction mismatches → fix state file direction
+
+Alert user on Telegram ({TELEGRAM}) for critical issues.
+If only WARNINGs → fix silently.
 If no issues → HEARTBEAT_OK.
+
+NOTE: The combined DSL runner handles all positions, so there are no per-position crons to check. Health check only validates state files vs actual positions.
 ```
 
 ---
 
-## 7. Opportunity Scanner (every 15min)
+## 7. Opportunity Scanner (every 15min) — OPTIONAL
 
 ```
-WOLF scanner: Run `PYTHONUNBUFFERED=1 timeout 180 python3 {SCRIPTS}/opportunity-scan.py 2>/dev/null`. Read /data/workspace/wolf-strategy.json for rules. Wallet: {WALLET} (strategy {STRATEGY_SHORT}). Max {SLOTS} concurrent positions, ${MARGIN} margin each, {LEVERAGE}x leverage. XYZ positions use leverageType ISOLATED on same wallet. Threshold 175+. Check existing positions before opening. If good opportunity → open position, create DSL state file (dsl-state-WOLF-{ASSET}.json), create DSL cron, alert user ({TELEGRAM}). Otherwise HEARTBEAT_OK. AUTO-DELEVER: If account below ${DELEVER_THRESHOLD} → max {SLOTS-1} positions only.
+WOLF scanner: Run `PYTHONUNBUFFERED=1 timeout 180 python3 {SCRIPTS}/opportunity-scan.py 2>/dev/null`. Read /data/workspace/wolf-strategy.json for rules. Wallet: {WALLET} (strategy {STRATEGY_SHORT}). Max {SLOTS} concurrent positions, ${MARGIN} margin each, {LEVERAGE}x leverage. XYZ positions use leverageType ISOLATED on same wallet. Threshold 175+. Check existing positions before opening. If good opportunity → open position, create DSL state file (dsl-state-WOLF-{ASSET}.json), alert user ({TELEGRAM}). Otherwise HEARTBEAT_OK. AUTO-DELEVER: If account below ${DELEVER_THRESHOLD} → max {SLOTS-1} positions only.
 ```
+
+**NOTE:** The opportunity scanner has reliability issues. Emerging Movers (cron #1) is the primary and proven entry source. This cron is optional.
+
+---
+
+## v5 Changes from v4
+
+| Change | v4 | v5 |
+|--------|----|----|
+| Scanner interval | 60s | **90s** (reduces token burn) |
+| Top signal | IMMEDIATE_MOVER | **FIRST_JUMP** (enter before confirmation) |
+| Entry threshold | 4+ reasons, vel ≥ 0.03 | **2+ reasons, vel > 0 for first jumps** |
+| DSL architecture | Per-position crons (create/destroy) | **Combined runner** (one cron, all positions) |
+| Phase 1 max | No limit | **90min hard cap, 45min weak peak cut** |
+| Min leverage | Any | **7x minimum** |
+| Erratic filter | Full history | **Exclude current jump for FIRST_JUMP/IMMEDIATE** |
+| CONTRIB_EXPLOSION | Could be downgraded | **Never downgraded** |
