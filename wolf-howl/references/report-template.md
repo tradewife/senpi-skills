@@ -1,4 +1,3 @@
-[howl-report-template.md](https://github.com/user-attachments/files/25532208/howl-report-template.md)
 # 🐺🌙 HOWL — YYYY-MM-DD
 
 ## Summary
