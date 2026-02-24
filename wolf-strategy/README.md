@@ -2,7 +2,7 @@
 
 Fully autonomous trading strategy for Hyperliquid perps. The WOLF hunts for its human — scans, enters, exits, and rotates positions without asking permission.
 
-**Proven:** +$1,500 realized, 25+ trades, 65% win rate on $6.5k budget.
+**Proven:** +$2,000 realized in 24h, 25+ trades, 65% win rate on $6.5k budget.
 
 ## What's Included
 
