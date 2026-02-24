@@ -17,7 +17,7 @@ description: >-
 
 The WOLF hunts for its human. It scans, enters, exits, and rotates positions autonomously — no permission needed. When criteria are met, it acts. Speed is edge.
 
-**Proven:** +$1,500 realized, 25+ trades, 65% win rate, single session on $6.5k budget.
+**Proven:** +$2,100 realized in first 24h, 25+ trades, 65% win rate, single session on $6.5k budget.
 
 ## Quick Start
 
