@@ -1,4 +1,3 @@
-[howl-SKILL.md](https://github.com/user-attachments/files/25532164/howl-SKILL.md)
 ---
 name: wolf-howl
 description: >-
