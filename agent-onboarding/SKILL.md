@@ -311,6 +311,41 @@ After configuring the MCP server, you MUST display a confirmation message to the
 > 
 > After funding, try: "Show me the top traders on Hyperliquid" or "What's my portfolio?"
 
+After displaying the confirmation, also share the following with the user:
+
+#### About Senpi
+
+Senpi is a trading platform on Hyperliquid — a high-performance perpetual futures DEX.
+
+**What agents can do:**
+- Discover profitable traders (Hyperfeed + Discovery)
+- Mirror top traders or run custom strategies with full position control
+- Trade 200+ crypto perps, plus equities, metals, and indices via XYZ DEX
+
+**Core loop:** spot what's profiting → validate with data → trade or copy.
+
+**After the MCP server is active**, call `read_senpi_guide(uri="senpi://guides/senpi-overview")` for the full platform reference (wallets, strategies, tool categories, fees, workflows, gotchas).
+
+#### Available Skills
+
+Pre-built trading strategies to install on top of the core MCP tools. Each skill is a SKILL.md file loaded into the agent.
+
+- **DSL / DSL Tight** — Trailing stop loss with ROE-based tier triggers (tight variant is more aggressive)
+- **Opportunity Scanner** — Scores 500+ perps 0–400 on smart money + technicals
+- **Emerging Movers** — Tracks smart money concentration every 60s
+- **Whale Index** — Auto-mirrors top Discovery traders by PnL, win rate, consistency
+- **Autonomous Trading** — Orchestrates multiple skills with budget, target, and deadline
+- **WOLF Strategy** — Autonomous 2–3 slot concentrated position manager
+- **HOWL** — Nightly self-improvement loop analyzing trade history
+
+**How to install a skill:**
+- Senpi Telegram app: Send the SKILL.md file to your agent with "Here are some new superpowers"
+- Other agents: Download from `github.com/Senpi-ai/senpi-skills/<skill-name>/SKILL.md`
+
+Most skills require a funded wallet ($500–$1k+) and a high-capability model (Claude Opus or equivalent).
+
+Onboarding is complete. The sections below are reference material — consult only when needed.
+
 ---
 
 ## Error Handling
@@ -356,7 +391,7 @@ If the API returns an error indicating the user already has an account (e.g., Us
 >
 > ⚠️ Important: You won't be able to view your API key again after this screen. Copy it immediately and store it somewhere safe.
 
-If the user provides an API key manually, skip to Step 5 (persist) and Step 6 (configure MCP).skip to Step 5 (persist) and Step 6 (configure MCP).
+If the user provides an API key manually, skip to Step 5 (persist) and Step 6 (configure MCP).
 
 ### Missing Node.js
 
@@ -387,4 +422,3 @@ If you lose your API key or MCP configuration:
 2. **If credentials file exists:** Re-run Step 6 (Configure MCP Server) using the saved API key.
 3. **If credentials file is missing or corrupted:** Restart the onboarding flow from Step 1. The API will either create a new account or return `User already exists` — in either case, follow the appropriate flow to obtain a valid API key.
 
----
