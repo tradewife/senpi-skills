@@ -150,9 +150,9 @@ WALLET_DATA=$(npx -y -p ethers@6 node -e "
 
 **If the above command fails**, the agent should resolve the dependency automatically using one of these fallback approaches:
 
-**Fallback 1: Install ethers locally in the workspace (recommended)**
+**Fallback 1: Install ethers locally in the OpenClaw workspace (recommended)**
 ```bash
-cd /root/.openclaw/workspace
+cd "~/.openclaw/workspace"
 npm install ethers@6 --no-save
 WALLET_DATA=$(node -e "
   const { ethers } = require('ethers');
@@ -651,38 +651,6 @@ If `npx` is not available, the MCP server cannot be configured (it requires `mcp
 - macOS: `brew install node`
 - Linux: `curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash - && sudo apt-get install -y nodejs`
 - Or visit: https://nodejs.org
-
-### mcporter Skill Not Found (OpenClaw)
-
-If `mcporter` is not available in OpenClaw, install it:
-
-1. **Install Node.js (if needed):**
-   ```bash
-   # macOS
-   brew install node
-   
-   # Ubuntu/Debian
-   sudo apt update && sudo apt install -y nodejs npm
-   ```
-
-2. **Install mcporter globally:**
-   ```bash
-   npm i -g mcporter
-   ```
-
-3. **Verify the installation:**
-   ```bash
-   mcporter --version
-   mcporter list
-   ```
-
-4. **Test with Senpi (after completing onboarding):**
-   ```bash
-   mcporter list senpi --output json
-   mcporter call senpi.user_get_me --output json
-   ```
-
-If installation fails, fall back to Option C (Generic) in Step 6 to write the MCP configuration manually.
 
 ---
 
