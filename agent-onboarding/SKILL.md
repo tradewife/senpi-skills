@@ -41,9 +41,64 @@ curl -sL https://senpi.ai/skill.md -o ~/.senpi/skills/senpi-onboard/SKILL.md
 
 ---
 
+## Environment Variable Defaults
+
+The following environment variables use `{{VARIABLE}}` placeholder format. These placeholders are automatically injected by the Senpi frontend. If a placeholder is not injected (e.g., when downloading the skill directly), the agent should use the default values below:
+
+| Variable | Placeholder | Default Value |
+|----------|-------------|---------------|
+| `SENPI_MCP_ENDPOINT` | `{{SENPI_MCP_ENDPOINT}}` | `https://mcp.prod.senpi.ai` |
+| `REFERRAL_CODE` | `{{REFERRAL_CODE}}` | Empty (optional) |
+
+**Note:** If the agent encounters a literal `{{VARIABLE}}` string (not substituted), it should use the default value from the table above.
+
+---
+
 ## Onboarding Flow
 
 Follow every step in order. Do not skip steps.
+
+### Step 0: Verify mcporter Skill is Enabled (OpenClaw only)
+
+Before proceeding with onboarding, verify the `mcporter` skill is installed and enabled in OpenClaw. This skill is required to configure MCP servers.
+
+```bash
+# Check if mcporter command is available
+if command -v mcporter &> /dev/null; then
+  echo "mcporter is available"
+  mcporter --version
+  MCPORTER_AVAILABLE=true
+else
+  echo "mcporter not found"
+  MCPORTER_AVAILABLE=false
+fi
+```
+
+**If mcporter is NOT available, install it:**
+
+1. **Ensure Node.js is installed:**
+   ```bash
+   # macOS
+   brew install node
+   
+   # Ubuntu/Debian
+   sudo apt update && sudo apt install -y nodejs npm
+   ```
+
+2. **Install mcporter globally:**
+   ```bash
+   npm i -g mcporter
+   ```
+
+3. **Verify the installation:**
+   ```bash
+   mcporter --version
+   mcporter list
+   ```
+
+Once installed, set `MCPORTER_AVAILABLE=true` and proceed to Step 1.
+
+---
 
 ### Step 1: Collect Identity
 
@@ -92,6 +147,52 @@ WALLET_DATA=$(npx -y -p ethers@6 node -e "
   }));
 ")
 ```
+
+**If the above command fails**, the agent should resolve the dependency automatically using one of these fallback approaches:
+
+**Fallback 1: Install ethers locally in the OpenClaw workspace (recommended)**
+```bash
+cd "~/.openclaw/workspace"
+npm install ethers@6 --no-save
+WALLET_DATA=$(node -e "
+  const { ethers } = require('ethers');
+  const w = ethers.Wallet.createRandom();
+  console.log(JSON.stringify({
+    address: w.address,
+    privateKey: w.privateKey,
+    mnemonic: w.mnemonic.phrase
+  }));
+")
+```
+
+**Fallback 2: Install ethers locally in current directory**
+```bash
+npm install ethers@6 --no-save
+WALLET_DATA=$(node -e "
+  const { ethers } = require('ethers');
+  const w = ethers.Wallet.createRandom();
+  console.log(JSON.stringify({
+    address: w.address,
+    privateKey: w.privateKey,
+    mnemonic: w.mnemonic.phrase
+  }));
+")
+```
+
+**Fallback 3: Use npx with explicit package flag**
+```bash
+npx --yes --package=ethers@6 -- node -e "
+  const { ethers } = require('ethers');
+  const w = ethers.Wallet.createRandom();
+  console.log(JSON.stringify({
+    address: w.address,
+    privateKey: w.privateKey,
+    mnemonic: w.mnemonic.phrase
+  }));
+"
+```
+
+**Do not prompt the user** if `npx ethers` fails — try these fallbacks automatically in order until one succeeds. Only inform the user if all approaches fail.
 
 Parse the generated wallet data:
 
@@ -176,13 +277,16 @@ Regardless of which option was used, verify the following variables are set befo
 
 ### Step 2: Set Referral Code
 
-The referral code may come from the skill download URL (`?ref=` parameter) or the user may provide one directly.
+The referral code may come from the skill download URL (`?ref=` parameter), environment variable, or the user may provide one directly.
 
 ```bash
+# Use environment variable if set, otherwise empty
 REFERRAL_CODE="{{REFERRAL_CODE}}"
 ```
 
 If `REFERRAL_CODE` is empty and the user has not provided one, that is fine — it is optional. Do not prompt for it unless the user mentions having one.
+
+**Default value:** If no referral code is provided via the skill download URL or by the user, leave it empty.
 
 ### Step 3: Call Onboarding API
 
@@ -328,11 +432,25 @@ The Senpi MCP server is a hosted HTTP endpoint accessed via `mcp-remote`. Config
 
 **Detect the agent platform and configure accordingly:**
 
-- If `mcporter` CLI is available → Option A (OpenClaw)
+- If `mcporter` CLI is available (check `MCPORTER_AVAILABLE` from Step 0) → Option A (OpenClaw)
 - If `claude` CLI is available → Option B (Claude Code)
 - Otherwise → Option C (Generic / manual config)
 
 #### Option A: OpenClaw (if `mcporter` CLI is available)
+
+First, verify mcporter is available (should have been checked in Step 0):
+
+```bash
+if [ "$MCPORTER_AVAILABLE" != "true" ]; then
+  # Re-check in case environment changed
+  if ! command -v mcporter &> /dev/null; then
+    echo "mcporter not available, falling back to Option B or C"
+    # Skip to Option B or C
+  fi
+fi
+```
+
+If mcporter is available, configure the Senpi MCP server:
 
 ```bash
 mcporter config add senpi --command npx \
@@ -343,6 +461,8 @@ mcporter config add senpi --command npx \
 ```
 
 This registers the Senpi MCP server in the OpenClaw workspace configuration.
+
+**If mcporter command fails:** Don't prompt the user — fall back to Option C (Generic) and write the configuration manually.
 
 #### Option B: Claude Code (if `claude` CLI is available)
 
@@ -489,7 +609,7 @@ Common errors:
 | Invalid from action | The from field is not WALLET or TELEGRAM | Use only supported identity types |
 | Invalid referral code | The provided referral code is malformed or does not correspond to an existing user | Proceed without referral code, or ask user to verify it |
 | You cannot refer yourself as a referrer | The referral code belongs to the same user being created | Remove the referral code and retry |
-| User already exists or User already exists. Search using <username> | The wallet or Telegram identity is already associated with an existing Senpi account | Direct user to the Manual Flow Fallback to create an API key for their existing account |
+| User already exists or User already exists. Search using \<username\> | The wallet or Telegram identity is already associated with an existing Senpi account | Direct user to the Manual Flow Fallback to create an API key for their existing account |
 | Invalid sign up method for user, can't create user | The identity provided cannot be used to create an account | Try a different identity type (wallet or Telegram) |
 | User cannot be created | Internal error during user creation | Retry once; if it persists, use Manual Flow Fallback |
 
@@ -516,10 +636,13 @@ If the user provides an API key manually, skip to Step 5 (persist) and Step 6 (c
 
 ### Wallet Generation Failure (Option C)
 
-If `npx -y -p ethers@6 node -e ...` fails or returns empty/invalid data:
-- Verify Node.js is installed (`node --version`).
-- Retry once — `npx` may need to download `ethers` on first run, which can time out on slow networks.
-- If it fails again, inform the user that wallet generation failed and ask them to provide a wallet address or Telegram username instead (fall back to Option A or B).
+If wallet generation fails (all fallback methods exhausted):
+1. Verify Node.js is installed (`node --version`).
+2. Check npm is functional (`npm --version`).
+3. Ensure network connectivity for package downloads.
+4. If all approaches fail, inform the user and ask them to provide a wallet address or Telegram username instead (fall back to Option A or B).
+
+**Do not prompt the user during fallback attempts** — the agent should silently try each fallback method before reporting failure.
 
 ### Missing Node.js
 
@@ -555,4 +678,3 @@ If you lose your API key or MCP configuration:
 - The wallet private key and mnemonic are stored **only** in `~/.config/senpi/wallet.json`. There is no server-side backup.
 - If `wallet.json` is deleted and no external backup exists, the wallet and any funds in it are **permanently lost**.
 - If `credentials.json` shows `"walletGenerated": true`, always verify `wallet.json` exists before proceeding with any recovery steps.
-
