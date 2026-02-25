@@ -63,14 +63,26 @@ DEFAULT_CONFIG = {
 }
 
 
+def deep_merge(base, override):
+    """Recursively merge override into base. Override values win.
+    For nested dicts, merge recursively instead of replacing."""
+    result = dict(base)
+    for key, value in override.items():
+        if (key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)):
+            result[key] = deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def load_config():
-    """Load scanner config with fallback to defaults."""
+    """Load scanner config with deep merge of user overrides."""
     try:
         with open(SCANNER_CONFIG_FILE) as f:
             user = json.load(f)
-        merged = dict(DEFAULT_CONFIG)
-        merged.update(user)
-        return merged
+        return deep_merge(DEFAULT_CONFIG, user)
     except (FileNotFoundError, json.JSONDecodeError):
         return dict(DEFAULT_CONFIG)
 
@@ -449,32 +461,55 @@ def score_smart_money(asset_data):
     return min(100, round(score)), direction, details
 
 
-def score_market_structure(meta):
+def compute_volume_trend(candles_1h):
+    """Compare recent vs prior volume using 1h candles we already fetch."""
+    if len(candles_1h) < 8:
+        return 1.0  # Not enough data
+
+    mid = len(candles_1h) // 2
+    prior = candles_1h[:mid]
+    recent = candles_1h[mid:]
+
+    prior_avg = sum(float(c["v"]) for c in prior) / len(prior)
+    recent_avg = sum(float(c["v"]) for c in recent) / len(recent)
+
+    if prior_avg == 0:
+        return 1.0
+    return round(recent_avg / prior_avg, 2)
+
+
+def score_market_structure(meta, technicals=None):
+    """Pillar 2: Volume, OI, market dynamics."""
     vol24h = meta.get("volume24h", 0)
     oi = meta.get("openInterest", 0)
-    prev_day_vol = meta.get("prevDayVolume", vol24h)
     score = 0
 
+    # Volume magnitude
     if vol24h > 50_000_000: score += 30
     elif vol24h > 10_000_000: score += 20
     elif vol24h > 1_000_000: score += 10
 
-    if prev_day_vol > 0:
-        vol_change = vol24h / prev_day_vol
-        if vol_change > 2.0: score += 30
-        elif vol_change > 1.3: score += 20
-        elif vol_change > 1.0: score += 10
+    # Volume trend — use candle-derived ratio instead of broken prevDayVolume
+    vol_trend = 1.0
+    if technicals and "volumeTrend" in technicals:
+        vol_trend = technicals["volumeTrend"]
 
+    if vol_trend > 2.0: score += 30  # volume surge
+    elif vol_trend > 1.3: score += 20
+    elif vol_trend > 1.0: score += 10
+
+    # OI significance
     if oi > 10_000_000: score += 20
     elif oi > 1_000_000: score += 10
 
+    # OI to volume ratio
     if vol24h > 0:
         oi_vol = oi / vol24h
         if 0.3 < oi_vol < 3.0: score += 20
 
     details = {
         "vol24h": round(vol24h), "oi": round(oi),
-        "volTrend": round(vol24h / prev_day_vol, 2) if prev_day_vol > 0 else 1.0
+        "volTrend": vol_trend
     }
     return min(100, round(score)), details
 
@@ -658,11 +693,15 @@ def deep_dive_asset(name, direction, meta, btc_macro, config):
                 if vol_surge > 1.5 and recent_chg < 0: divergence = "bullish"
                 elif vol_surge > 1.5 and recent_chg > 0: divergence = "bearish"
 
+        # Volume trend from 1h candles (fixes bug where prevDayVolume == vol24h)
+        volume_trend = compute_volume_trend(candles_1h)
+
         result["technicals"] = {
             "hourlyTrend": hourly_trend,
             "trend4h": trend_4h, "trendStrength": trend_strength,
             "rsi1h": rsi1h, "rsi15m": rsi15m,
             "volRatio1h": vol1h, "volRatio15m": vol15m,
+            "volumeTrend": volume_trend,
             "resistance": round(max(swing_highs), 4) if swing_highs else None,
             "support": round(min(swing_lows), 4) if swing_lows else None,
             "chg1h": chg1h, "chg4h": chg4h, "chg24h": chg24h,
@@ -757,7 +796,6 @@ def main():
             assets[name] = {
                 "funding": funding, "volume24h": vol24h,
                 "openInterest": oi, "markPrice": mark,
-                "prevDayVolume": vol24h,
             }
 
         log("info", f"Stage 1: {len(assets)} assets pass volume filter (of {len(meta_info)} total)")
@@ -891,7 +929,7 @@ def main():
             # Full 4-pillar scoring (compute even if disqualified for transparency)
             sm = sm_by_asset.get(name, {})
             sm_score, _, sm_details = score_smart_money(sm)
-            ms_score, ms_details = score_market_structure(assets[name])
+            ms_score, ms_details = score_market_structure(assets[name], technicals=tf_data)
             tech_score, tech_details = score_technicals(tf_data, direction)
             fund_score, fund_details = score_funding(assets[name]["funding"], direction)
 
