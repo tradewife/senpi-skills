@@ -222,6 +222,7 @@ def parse_frontmatter_field(skill_md_text, field):
     lines = skill_md_text.split("\n")
     in_frontmatter = False
     collecting = False
+    block_style = None
     collected = []
 
     for i, line in enumerate(lines):
@@ -234,7 +235,10 @@ def parse_frontmatter_field(skill_md_text, field):
             continue
 
         if collecting:
-            if line.startswith("  ") or line.startswith("\t"):
+            if line.strip() == "":
+                # Blank lines are valid inside YAML block scalars.
+                collected.append("")
+            elif line.startswith("  ") or line.startswith("\t"):
                 collected.append(line.strip())
             else:
                 # End of block scalar
@@ -243,11 +247,35 @@ def parse_frontmatter_field(skill_md_text, field):
             val = line.split(":", 1)[1].strip()
             if val in (">", ">-", "|", "|-"):
                 collecting = True
+                block_style = val
             else:
                 return val.strip('"').strip("'")
 
     if collected:
-        return " ".join(collected)
+        if block_style and block_style.startswith("|"):
+            parsed = "\n".join(collected).strip()
+            return parsed if parsed else None
+
+        # Folded scalar: fold lines in each paragraph, preserve blank lines
+        # as paragraph breaks.
+        paragraphs = []
+        current_paragraph = []
+        for block_line in collected:
+            if block_line == "":
+                if current_paragraph:
+                    paragraphs.append(" ".join(current_paragraph).strip())
+                    current_paragraph = []
+                elif paragraphs:
+                    # Preserve repeated blank lines between paragraphs.
+                    paragraphs.append("")
+            else:
+                current_paragraph.append(block_line)
+
+        if current_paragraph:
+            paragraphs.append(" ".join(current_paragraph).strip())
+
+        parsed = "\n\n".join(paragraphs).strip()
+        return parsed if parsed else None
     return None
 
 
