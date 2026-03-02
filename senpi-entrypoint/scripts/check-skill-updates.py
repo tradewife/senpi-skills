@@ -263,7 +263,15 @@ def main():
         github_sha = current_github_entry.get("sha", "")
 
         if stored_hash and github_sha == stored_hash:
-            # No change — nothing to surface
+            # Hash unchanged. Seed known_versions on first encounter so that if
+            # the hash ever changes in the future, old_version is the correct
+            # baseline and not None (which would produce a spurious "unknown → vX"
+            # report even for docs-only changes where the version didn't bump).
+            if skill_name not in known_versions:
+                skill_md_text = github_raw(f"{skill_path}/SKILL.md")
+                version = parse_frontmatter_field(skill_md_text, "metadata.version")
+                if version:
+                    known_versions[skill_name] = version
             continue
 
         # Hash changed — fetch SKILL.md to check if the version field bumped
@@ -290,13 +298,25 @@ def main():
     # 6. Detect skills in the GitHub repo that this user has never seen
     installed_names = set(senpi_skills.keys())
 
+    # On the very first run the catalog doesn't exist yet, so seenAvailable is
+    # empty. Without special-casing this, every non-installed skill in the repo
+    # would be surfaced as "new" — producing noisy output when there is nothing
+    # meaningful to compare against. Instead, silently baseline all current
+    # GitHub skill dirs so we only surface skills added *after* this first run.
+    is_first_run = catalog.get("lastChecked") is None
+
     for dir_name, dir_entry in github_skill_dirs.items():
         if dir_name in installed_names:
             continue
         if dir_name in seen_available:
             continue
 
-        # Genuinely new — fetch its SKILL.md metadata
+        if is_first_run:
+            # Silently mark as seen — don't surface pre-existing skills on first run.
+            seen_available.add(dir_name)
+            continue
+
+        # Genuinely new skill added to the repo since our last check — fetch metadata.
         skill_md_text = github_raw(f"{dir_name}/SKILL.md")
         if not skill_md_text:
             continue
