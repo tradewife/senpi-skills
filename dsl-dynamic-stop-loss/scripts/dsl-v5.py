@@ -145,7 +145,7 @@ def get_strategy_active_and_wallet(strategy_id: str) -> tuple[bool, str | None, 
         return False, None, f"strategy status is {status!r} (not ACTIVE/PAUSED)", True
     wallet = (strategy.get("strategyWalletAddress") or "").strip()
     if not wallet:
-        return False, None, "strategy_get: no strategyWalletAddress", True
+        return False, None, "strategy_get: no strategyWalletAddress", False  # data quality, not confirmed inactive
     return True, wallet, None, False
 
 
@@ -780,10 +780,20 @@ def main() -> None:
             except OSError:
                 pass
 
+    processed = 0
     for coin in sorted(coins):
         state_file, path_error = resolve_state_file(state_dir, strategy_id, coin)
         if path_error is None:
             process_one_position(state_file, strategy_id, now)
+            processed += 1
+
+    if processed == 0:
+        print(json.dumps({
+            "status": "no_positions",
+            "strategy_id": strategy_id,
+            "message": "Strategy active but no position state files to process. Agent: keep cron; next run may have positions or output strategy_inactive after cleanup.",
+            "time": now,
+        }))
 
 
 if __name__ == "__main__":
