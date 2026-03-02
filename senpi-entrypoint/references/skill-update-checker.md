@@ -27,13 +27,19 @@ notifying me about new skills":
 ```bash
 node -e "
   const fs = require('fs');
+  const path = require('path');
   const p = require('os').homedir() + '/.config/senpi/state.json';
+  let s;
   try {
-    const s = JSON.parse(fs.readFileSync(p, 'utf8'));
-    s.skillUpdates = { enabled: false };
-    fs.writeFileSync(p, JSON.stringify(s, null, 2));
-    console.log('done');
-  } catch(e) { console.log('state file not found'); }
+    s = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    s = {};
+  }
+  s.skillUpdates = { enabled: false };
+  fs.writeFileSync(p, JSON.stringify(s, null, 2));
+  console.log('done');
 "
 ```
 
@@ -47,13 +53,19 @@ the same pattern:
 ```bash
 node -e "
   const fs = require('fs');
+  const path = require('path');
   const p = require('os').homedir() + '/.config/senpi/state.json';
+  let s;
   try {
-    const s = JSON.parse(fs.readFileSync(p, 'utf8'));
-    s.skillUpdates = { enabled: true };
-    fs.writeFileSync(p, JSON.stringify(s, null, 2));
-    console.log('done');
-  } catch(e) { console.log('state file not found'); }
+    s = JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) {
+    if (e.code !== 'ENOENT') throw e;
+    fs.mkdirSync(path.dirname(p), { recursive: true });
+    s = {};
+  }
+  s.skillUpdates = { enabled: true };
+  fs.writeFileSync(p, JSON.stringify(s, null, 2));
+  console.log('done');
 "
 ```
 
