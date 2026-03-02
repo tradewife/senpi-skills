@@ -95,6 +95,7 @@ def github_raw(path, max_attempts=3, delay=3):
 def parse_frontmatter_field(skill_md_text, field):
     """
     Extract a scalar or block-scalar field from YAML frontmatter.
+    Supports dotted paths for nested fields (e.g. "metadata.version").
     Handles both:
       field: "simple value"
       field: >
@@ -104,6 +105,10 @@ def parse_frontmatter_field(skill_md_text, field):
     """
     if not skill_md_text:
         return None
+
+    if "." in field:
+        parent, child = field.split(".", 1)
+        return _parse_nested_frontmatter_field(skill_md_text, parent, child)
 
     lines = skill_md_text.split("\n")
     in_frontmatter = False
@@ -134,6 +139,36 @@ def parse_frontmatter_field(skill_md_text, field):
 
     if collected:
         return " ".join(collected)
+    return None
+
+
+def _parse_nested_frontmatter_field(skill_md_text, parent, child):
+    """Find a scalar field nested (indented) under a parent key in YAML frontmatter."""
+    lines = skill_md_text.split("\n")
+    in_frontmatter = False
+    in_parent = False
+
+    for i, line in enumerate(lines):
+        if i == 0 and line.strip() == "---":
+            in_frontmatter = True
+            continue
+        if in_frontmatter and line.strip() == "---":
+            break
+        if not in_frontmatter:
+            continue
+
+        if in_parent:
+            if line.startswith("  ") or line.startswith("\t"):
+                stripped = line.strip()
+                if stripped.startswith(f"{child}:"):
+                    val = stripped.split(":", 1)[1].strip()
+                    return val.strip('"').strip("'")
+            elif line and not line[0].isspace():
+                # Returned to top-level — parent block ended without finding child
+                in_parent = False
+        elif line.startswith(f"{parent}:"):
+            in_parent = True
+
     return None
 
 
@@ -220,7 +255,7 @@ def main():
 
         # Hash changed — fetch SKILL.md to check if the version field bumped
         skill_md_text = github_raw(f"{skill_path}/SKILL.md")
-        new_version = parse_frontmatter_field(skill_md_text, "version")
+        new_version = parse_frontmatter_field(skill_md_text, "metadata.version")
 
         if not new_version:
             # No version in frontmatter — not a versioned skill, skip
@@ -253,7 +288,7 @@ def main():
         if not skill_md_text:
             continue
 
-        version = parse_frontmatter_field(skill_md_text, "version")
+        version = parse_frontmatter_field(skill_md_text, "metadata.version")
         description = parse_frontmatter_field(skill_md_text, "description")
 
         new_skills.append({
