@@ -2,7 +2,9 @@
 
 ## Output Handling
 
-At session startup the entrypoint reads $SENPI_STATE_DIR/pending-skill-updates.json` (default: `~/.config/senpi/pending-skill-updates.json` if `SENPI_STATE_DIR` is unset)
+At session startup the entrypoint reads
+`$SENPI_STATE_DIR/pending-skill-updates.json` (default:
+`~/.config/senpi/pending-skill-updates.json` if `SENPI_STATE_DIR` is unset)
 (written by the background daily cron) into `UPDATE_OUTPUT`. Parse it as JSON:
 
 - **`heartbeat: "HEARTBEAT_OK"`** — Nothing new. Say nothing, do nothing.
@@ -28,7 +30,9 @@ notifying me about new skills":
 node -e "
   const fs = require('fs');
   const path = require('path');
-  const p = require('os').homedir() + '/.config/senpi/state.json';
+  const os = require('os');
+  const stateDir = (process.env.SENPI_STATE_DIR || '~/.config/senpi').replace(/^~(?=$|\/)/, os.homedir());
+  const p = path.join(stateDir, 'state.json');
   let s;
   try {
     s = JSON.parse(fs.readFileSync(p, 'utf8'));
@@ -56,7 +60,9 @@ the same pattern:
 node -e "
   const fs = require('fs');
   const path = require('path');
-  const p = require('os').homedir() + '/.config/senpi/state.json';
+  const os = require('os');
+  const stateDir = (process.env.SENPI_STATE_DIR || '~/.config/senpi').replace(/^~(?=$|\/)/, os.homedir());
+  const p = path.join(stateDir, 'state.json');
   let s;
   try {
     s = JSON.parse(fs.readFileSync(p, 'utf8'));

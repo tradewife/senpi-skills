@@ -54,7 +54,8 @@ Before anything else, check whether the background cron has queued skill
 update notifications since the last session:
 
 ```bash
-SENPI_PENDING="$HOME/.config/senpi/pending-skill-updates.json"
+SENPI_STATE_DIR="${SENPI_STATE_DIR:-$HOME/.config/senpi}"
+SENPI_PENDING="$SENPI_STATE_DIR/pending-skill-updates.json"
 if [ -f "$SENPI_PENDING" ]; then
   UPDATE_OUTPUT=$(cat "$SENPI_PENDING") && rm -f "$SENPI_PENDING"
 fi
