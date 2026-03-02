@@ -62,6 +62,112 @@ def atomic_write(path, data):
     os.replace(tmp, path)
 
 
+def merge_pending_results(existing, incoming):
+    """
+    Merge cron output with already-pending notifications.
+    Prevents later cron runs from overwriting unsurfaced items.
+    """
+    if not isinstance(existing, dict):
+        existing = {}
+    if not isinstance(incoming, dict):
+        incoming = {}
+
+    merged_updated = []
+    updated_by_name = {}
+
+    for item in existing.get("updatedSkills") or []:
+        name = item.get("name")
+        if not name:
+            continue
+        normalized = {
+            "name": name,
+            "oldVersion": item.get("oldVersion") or "unknown",
+            "newVersion": item.get("newVersion") or item.get("oldVersion") or "unknown",
+        }
+        updated_by_name[name] = len(merged_updated)
+        merged_updated.append(normalized)
+
+    for item in incoming.get("updatedSkills") or []:
+        name = item.get("name")
+        if not name:
+            continue
+        incoming_old = item.get("oldVersion") or "unknown"
+        incoming_new = item.get("newVersion") or incoming_old
+
+        if name in updated_by_name:
+            idx = updated_by_name[name]
+            prev = merged_updated[idx]
+            old_version = prev.get("oldVersion") or "unknown"
+            if old_version == "unknown" and incoming_old != "unknown":
+                old_version = incoming_old
+            merged_updated[idx] = {
+                "name": name,
+                "oldVersion": old_version,
+                "newVersion": incoming_new,
+            }
+        else:
+            updated_by_name[name] = len(merged_updated)
+            merged_updated.append({
+                "name": name,
+                "oldVersion": incoming_old,
+                "newVersion": incoming_new,
+            })
+
+    merged_new = []
+    new_by_name = {}
+
+    for item in existing.get("newSkills") or []:
+        name = item.get("name")
+        if not name:
+            continue
+        normalized = {
+            "name": name,
+            "version": item.get("version") or "latest",
+            "description": (item.get("description") or "").strip(),
+        }
+        new_by_name[name] = len(merged_new)
+        merged_new.append(normalized)
+
+    for item in incoming.get("newSkills") or []:
+        name = item.get("name")
+        if not name:
+            continue
+        normalized = {
+            "name": name,
+            "version": item.get("version") or "latest",
+            "description": (item.get("description") or "").strip(),
+        }
+        if name in new_by_name:
+            merged_new[new_by_name[name]] = normalized
+        else:
+            new_by_name[name] = len(merged_new)
+            merged_new.append(normalized)
+
+    return {
+        "success": True,
+        "updatedSkills": merged_updated,
+        "newSkills": merged_new,
+    }
+
+
+def apply_pending_to_catalog(known_versions, seen_available, pending_result):
+    """Ensure catalog state reflects everything currently queued in pending."""
+    for item in pending_result.get("updatedSkills") or []:
+        name = item.get("name")
+        new_version = item.get("newVersion")
+        if name and new_version and new_version != "unknown":
+            known_versions[name] = new_version
+
+    for item in pending_result.get("newSkills") or []:
+        name = item.get("name")
+        if not name:
+            continue
+        seen_available.add(name)
+        version = item.get("version")
+        if version and version != "latest":
+            known_versions[name] = version
+
+
 def github_get(url, max_attempts=3, delay=3):
     """GET a GitHub API URL. Returns parsed JSON or None after all retries fail."""
     req = urllib.request.Request(
@@ -344,23 +450,30 @@ def main(args):
         if version:
             known_versions[dir_name] = version
 
-    # 7. Atomically update the catalog
+    result = None
+    if updated_skills or new_skills:
+        result = {"success": True, "updatedSkills": updated_skills, "newSkills": new_skills}
+
+    # 7. In cron mode, merge into pending before advancing catalog state.
+    # This prevents later runs from dropping unsurfaced notifications.
+    if args.cron and result:
+        existing_pending = load_json(PENDING_FILE, {})
+        merged_pending = merge_pending_results(existing_pending, result)
+        apply_pending_to_catalog(known_versions, seen_available, merged_pending)
+        atomic_write(PENDING_FILE, merged_pending)
+
+    # 8. Atomically update the catalog after pending is durable.
     catalog["knownVersions"] = known_versions
     catalog["seenAvailable"] = sorted(seen_available)
     catalog["lastChecked"] = datetime.now(timezone.utc).isoformat()
     atomic_write(CATALOG_FILE, catalog)
 
-    # 8. Output
-    if not updated_skills and not new_skills:
+    # 9. Output
+    if not result:
         if not args.cron:
             print(json.dumps({"heartbeat": "HEARTBEAT_OK"}))
-    else:
-        result = {"success": True, "updatedSkills": updated_skills, "newSkills": new_skills}
-        if args.cron:
-            # Queue for the next interactive session to surface
-            atomic_write(PENDING_FILE, result)
-        else:
-            print(json.dumps(result))
+    elif not args.cron:
+        print(json.dumps(result))
 
 
 if __name__ == "__main__":
