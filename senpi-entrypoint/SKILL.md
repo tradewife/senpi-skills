@@ -15,7 +15,7 @@ compatibility: >-
   (Step 5) requires Python 3 and a global install via `npx skills add ... -g`;
   it checks only the Vercel skills CLI global path (~/.agents/skills/) and
   skips silently if the skill was not installed globally. Background hourly
-  cron requires crontab access (standard on macOS and Linux).
+  cron requires crontab access (standard on macOS and Linux). Runs once daily.
 metadata:
   author: Senpi
   version: "1.2.0"
@@ -178,8 +178,8 @@ Agent behaviour for this step: see
 [references/skill-update-checker.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/skill-update-checker.md)
 (§ "Step 5 Agent Behaviour").
 
-Run this step after Step 4 completes. It registers an **OpenClaw cron** job
-(hourly) that runs the skill update checker in an isolated session with no
+Run this step after Step 4 completes. It registers a daily **OpenClaw cron**
+job that runs the skill update checker in an isolated session with no
 delivery; the agent runs the script and exits with no reply. Results are
 queued for the next session startup.
 
@@ -204,14 +204,14 @@ if [ -n "$SENPI_ENTRYPOINT_SCRIPTS" ] && command -v openclaw >/dev/null 2>&1; th
   openclaw cron remove "senpi-skill-update-check" 2>/dev/null || true
   SCRIPT_PATH="$SENPI_ENTRYPOINT_SCRIPTS/check-skill-updates.py"
   openclaw cron add "senpi-skill-update-check" \
-    --schedule "0 * * * *" \
+    --schedule "0 9 * * *" \
     --no-deliver \
     --message "Run this command with no output or reply: python3 \"$SCRIPT_PATH\" --cron. Then exit. Do not deliver or announce anything."
 fi
 ```
 
 The job is stored in `$OPENCLAW_STATE_DIR/cron/jobs.json` (default:
-`~/.openclaw/cron/jobs.json` if `OPENCLAW_STATE_DIR` is unset). It runs every hour; when
+`~/.openclaw/cron/jobs.json` if `OPENCLAW_STATE_DIR` is unset). It runs once daily at 09:00; when
 updates are found the script writes to
 `$SENPI_STATE_DIR/pending-skill-updates.json` (default:
 `~/.config/senpi/pending-skill-updates.json` if `SENPI_STATE_DIR` is unset),

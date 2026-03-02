@@ -3,7 +3,7 @@
 ## Output Handling
 
 At session startup the entrypoint reads $SENPI_STATE_DIR/pending-skill-updates.json` (default: `~/.config/senpi/pending-skill-updates.json` if `SENPI_STATE_DIR` is unset)
-(written by the background hourly cron) into `UPDATE_OUTPUT`. Parse it as JSON:
+(written by the background daily cron) into `UPDATE_OUTPUT`. Parse it as JSON:
 
 - **`heartbeat: "HEARTBEAT_OK"`** — Nothing new. Say nothing, do nothing.
 
@@ -84,7 +84,7 @@ pending file; never mention them or the checker inline.
 
 ## Background Cron (OpenClaw)
 
-Step 5 installs an hourly **OpenClaw cron** job named `senpi-skill-update-check`.
+Step 5 installs a daily **OpenClaw cron** job named `senpi-skill-update-check`.
 Each run is an isolated agent turn that executes the checker script with
 `--cron` and produces no delivery. The script is fully silent and writes any
 found updates to `$SENPI_STATE_DIR/pending-skill-updates.json` (default:
