@@ -215,23 +215,6 @@ re-enable by saying "turn on skill update notifications", which sets
 
 Handle these questions at any point — during onboarding or after it completes.
 
-### "What is Senpi?" / "How does Senpi work?" / "Explain Senpi"
-
-Give a concise answer using [`references/about-senpi.md`](references/about-senpi.md).
-Keep it to 2–3 sentences covering: what Senpi is, what the agent can do, and
-what the user needs to start (fund wallet + install a skill).
-
-If the MCP server is already connected, enrich the answer with live context:
-
-```
-read_senpi_guide(uri="senpi://guides/senpi-overview")
-```
-
-Do not recite the full guide — use it to answer follow-up specifics only
-(fees, strategy types, supported chains, etc.).
-
----
-
 ### "What skills should I install?" / "What should I use for [goal]?"
 
 First run:
