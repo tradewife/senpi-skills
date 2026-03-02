@@ -152,21 +152,9 @@ Find the `scripts/` directory for this skill — it is relative to wherever
 
 ```bash
 SENPI_ENTRYPOINT_SCRIPTS=$(node -e "
-  const fs = require('fs'), path = require('path'), os = require('os');
-  const home = os.homedir();
-  const candidates = [
-    path.join(home, '.claude', 'skills', 'senpi-entrypoint', 'scripts'),
-    path.join(home, '.agents', 'skills', 'senpi-entrypoint', 'scripts'),
-    path.join(home, '.cursor', 'skills', 'senpi-entrypoint', 'scripts'),
-    path.join(home, '.config', 'opencode', 'skills', 'senpi-entrypoint', 'scripts'),
-    path.join(home, '.cline', 'skills', 'senpi-entrypoint', 'scripts'),
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(path.join(c, 'check-skill-updates.py'))) {
-      console.log(c); process.exit(0);
-    }
-  }
-  console.log('');
+  const path = require('path'), os = require('os'), fs = require('fs');
+  const p = path.join(os.homedir(), '.agents', 'skills', 'senpi-entrypoint', 'scripts');
+  console.log(fs.existsSync(path.join(p, 'check-skill-updates.py')) ? p : '');
 " 2>/dev/null)
 ```
 
@@ -221,3 +209,59 @@ Confirm to the user that skill update notifications are off. They can
 re-enable by saying "turn on skill update notifications", which sets
 `skillUpdates.enabled` to `true` using the same pattern above.
 
+---
+
+## Responding to Questions
+
+Handle these questions at any point — during onboarding or after it completes.
+
+### "What is Senpi?" / "How does Senpi work?" / "Explain Senpi"
+
+Give a concise answer using [`references/about-senpi.md`](references/about-senpi.md).
+Keep it to 2–3 sentences covering: what Senpi is, what the agent can do, and
+what the user needs to start (fund wallet + install a skill).
+
+If the MCP server is already connected, enrich the answer with live context:
+
+```
+read_senpi_guide(uri="senpi://guides/senpi-overview")
+```
+
+Do not recite the full guide — use it to answer follow-up specifics only
+(fees, strategy types, supported chains, etc.).
+
+---
+
+### "What skills should I install?" / "What should I use for [goal]?"
+
+First run:
+
+```bash
+npx skills add https://github.com/Senpi-ai/senpi-skills --list
+```
+
+Then match the user's stated goal to the table below and recommend the
+best-fit skill(s). Always include the minimum budget and install command.
+
+| User goal | Recommended skill | Min budget |
+|---|---|---|
+| Protect profits on open positions / trailing stop loss | `dsl-dynamic-stop-loss` or `dsl-tight` (tighter defaults) | $100 |
+| Scan all markets for high-conviction setups | `opportunity-scanner` | $100 |
+| Catch smart money moves early, before they hit the leaderboard | `emerging-movers` | $100 |
+| Fully autonomous trading — no manual decisions needed | `wolf-strategy` ⭐ (includes DSL, Scanner, Emerging Movers) | $500 |
+| Mirror the best-performing traders automatically | `whale-index` | $500 |
+| Orchestrate DSL + Scanner + Emerging Movers on one budget | `autonomous-trading` | $500 |
+| Nightly trade review and self-improvement loop | `wolf-howl` (requires `wolf-strategy`) | — |
+
+For each recommendation, present:
+- Skill name + one-sentence description
+- Minimum budget
+- Install command: `npx skills add https://github.com/Senpi-ai/senpi-skills --skill <name> -g -y`
+
+If the user's budget is under $500, steer toward `dsl-dynamic-stop-loss`
+or `opportunity-scanner` to start. If they have $500+, `wolf-strategy` is
+the most complete autonomous option.
+
+If the user's goal is unclear, ask one question: **"Are you looking to
+protect existing positions, find new ones, or have the agent trade
+autonomously?"** — then map their answer to the table above.
