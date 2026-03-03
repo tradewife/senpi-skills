@@ -54,7 +54,7 @@ parser.add_argument("--name", help="Human-readable strategy name (optional)")
 parser.add_argument("--dsl-preset", choices=["aggressive", "conservative"], default="aggressive",
                     help="DSL tier preset (default: aggressive)")
 parser.add_argument("--mid-model", default="anthropic/claude-sonnet-4-20250514",
-                    help="Model ID for Mid-tier isolated crons (DSL, Portfolio, Health)")
+                    help="Model ID for Mid-tier isolated crons (DSL, Health)")
 parser.add_argument("--budget-model", default="anthropic/claude-haiku-4-5",
                     help="Model ID for Budget-tier isolated crons (SM Flip, Watchdog)")
 parser.add_argument("--trading-risk", choices=["conservative", "moderate", "aggressive"],
@@ -287,16 +287,6 @@ cron_templates = {
             "message": f"WOLF Watchdog: Run `PYTHONUNBUFFERED=1 timeout 45 python3 {SCRIPTS_DIR}/wolf-monitor.py`, parse JSON.\n\nCheck each strategy: crypto_liq_buffer_pct<50% -> WARNING (alert Telegram only); <30% -> CRITICAL (close the position with lowest ROE% in that strategy, then alert Telegram ({tg})). XYZ liq_distance_pct<15% -> alert Telegram.\nIf no alerts -> HEARTBEAT_OK."
         }
     },
-    "portfolio": {
-        "name": "WOLF Portfolio v6 (15min)",
-        "schedule": {"kind": "every", "everyMs": 900000},
-        "sessionTarget": "isolated",
-        "payload": {
-            "kind": "agentTurn",
-            "model": mid_model,
-            "message": f"WOLF Portfolio: Read {WORKSPACE}/wolf-strategies.json, get clearinghouse state per wallet, send Telegram ({tg}).\nFormat: code-block table with per-strategy name/account value/positions (asset, direction, ROE, PnL, DSL tier)/slot usage + global totals."
-        }
-    },
     "health_check": {
         "name": "WOLF Health Check v6 (10min)",
         "schedule": {"kind": "every", "everyMs": 600000},
@@ -307,16 +297,6 @@ cron_templates = {
             "message": f"WOLF Health Check: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS_DIR}/job-health-check.py`, parse JSON.\n\nThe script auto-fixes most issues (check the `action` field per issue):\n- auto_created -> DSL was missing, script created it. Alert Telegram ({tg}).\n- auto_deactivated -> Orphan DSL deactivated (position closed externally). No alert needed.\n- auto_replaced -> Direction mismatch fixed with fresh DSL. Alert Telegram ({tg}).\n- updated_state -> Size/entry/leverage reconciled to match on-chain. No alert needed.\n- skipped_fetch_error -> Orphan check skipped due to API error. No alert needed (transient).\n- alert_only -> Script could not auto-fix. Handle manually:\n  - NO_WALLET -> CRITICAL, needs manual config. Alert Telegram ({tg}).\n  - DSL_INACTIVE -> CRITICAL, set `active: true` in the DSL state file. Alert Telegram ({tg}).\nIf no issues -> HEARTBEAT_OK."
         }
     },
-    "opportunity_scanner": {
-        "name": "WOLF Scanner v6 (15min)",
-        "schedule": {"kind": "every", "everyMs": 900000},
-        "sessionTarget": "main",
-        "wakeMode": "now",
-        "payload": {
-            "kind": "systemEvent",
-            "text": f"WOLF scanner: Run `PYTHONUNBUFFERED=1 timeout 180 python3 {SCRIPTS_DIR}/opportunity-scan-v6.py 2>/dev/null`. Parse JSON.\n\nMulti-strategy signal routing: For each scored opportunity (threshold 175+):\n1. Which strategies have empty slots?\n2. Does any strategy already hold this asset? (skip within strategy, allow cross-strategy)\n3. Which strategy's risk profile matches the signal?\n4. Route to best-fit strategy.\n5. **Open position**: Run `python3 {SCRIPTS_DIR}/open-position.py --strategy {{STRATEGY_KEY}} --asset {{ASSET}} --direction {{DIRECTION}} --conviction {{CONVICTION}}`. Conviction comes from scanner output. This handles position creation + DSL state atomically. Do NOT hand-craft DSL JSON.\nAlert user ({tg}). Otherwise HEARTBEAT_OK."
-        }
-    }
 }
 
 print("\n" + "=" * 60)
@@ -345,11 +325,11 @@ if strategies_count > 1:
     print(f"  All strategies: {list(registry['strategies'].keys())}")
 
 print("\n" + "=" * 60)
-print("  Next Steps: Create 7 cron jobs")
+print("  Next Steps: Create 5 cron jobs")
 print("=" * 60)
 print(f"""
 Use OpenClaw cron to create each job. See references/cron-templates.md
-for the exact payload text for each of the 7 jobs.
+for the exact payload text for each of the 5 jobs.
 
 With multi-strategy, crons iterate all enabled strategies internally.
 You only need ONE set of crons regardless of strategy count.
@@ -359,9 +339,7 @@ You only need ONE set of crons regardless of strategy count.
   │ Cron                 │ Session  │ Payload  │ Model                                       │
   ├──────────────────────┼──────────┼──────────┼─────────────────────────────────────────────┤
   │ Emerging Movers      │ main     │ sysEvent │ Primary (your model)                        │
-  │ Opportunity Scanner  │ main     │ sysEvent │ Primary (your model)                        │
   │ DSL Combined         │ isolated │ agentTrn │ Mid: {mid_model}  │
-  │ Portfolio Update     │ isolated │ agentTrn │ Mid: {mid_model}  │
   │ Health Check         │ isolated │ agentTrn │ Mid: {mid_model}  │
   │ SM Flip Detector     │ isolated │ agentTrn │ Budget: {budget_model}       │
   │ Watchdog             │ isolated │ agentTrn │ Budget: {budget_model}       │
@@ -369,7 +347,7 @@ You only need ONE set of crons regardless of strategy count.
 
   Main crons share your primary session context (systemEvent).
   Isolated crons run in their own session (agentTurn) — no context pollution.
-  All 7 crons can also run on a single model if you prefer simplicity.
+  All 5 crons can also run on a single model if you prefer simplicity.
 """)
 
 # Output full result as JSON for programmatic use

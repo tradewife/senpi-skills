@@ -486,7 +486,6 @@ EXPECTED_CRONS = {
     "dsl_combined": 10,      # expect every 3min, alert at 10min
     "sm_flip": 15,           # expect every 5min, alert at 15min
     "watchdog": 15,          # expect every 5min, alert at 15min
-    "opp_scanner": 30,       # expect every 15min, alert at 30min
     "health_check": 20,      # expect every 10min, alert at 20min
 }
 

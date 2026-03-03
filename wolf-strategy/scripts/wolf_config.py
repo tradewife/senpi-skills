@@ -336,14 +336,6 @@ def calculate_leverage(max_leverage, trading_risk="moderate", conviction=0.5):
     return min(max(1, round(leverage)), max_leverage)
 
 
-def score_to_conviction(final_score):
-    """Convert opportunity scanner finalScore to conviction (0.0-1.0).
-
-    Normalizes from threshold (175) to practical max (~350).
-    """
-    return max(0.0, min(1.0, (final_score - 175) / (350 - 175)))
-
-
 # --- DSL state file validation ---
 
 DSL_REQUIRED_KEYS = [

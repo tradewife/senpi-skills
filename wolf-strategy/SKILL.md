@@ -3,10 +3,9 @@ name: wolf-strategy
 description: >-
   WOLF v6.1 — Fully autonomous multi-strategy trading for Hyperliquid perps via Senpi MCP.
   Manages multiple strategies simultaneously, each with independent wallets, budgets, slots,
-  and DSL configs. 7-cron architecture with Emerging Movers scanner (90s, FIRST_JUMP + IMMEDIATE_MOVER),
+  and DSL configs. 5-cron architecture with Emerging Movers scanner (90s, FIRST_JUMP + IMMEDIATE_MOVER),
   DSL v4 trailing stops (combined runner every 3min, 4-tier at 5/10/15/20% ROE),
-  SM flip detector (5min), watchdog (5min), portfolio updates (15min),
-  opportunity scanner v6 (15min, BTC macro + hourly trend + disqualifiers),
+  SM flip detector (5min), watchdog (5min),
   and health checks (10min). Same asset can be traded in different strategies simultaneously.
   Enter early on first jumps, not at confirmed peaks. Dynamic risk-based leverage per strategy.
   Requires Senpi MCP connection, python3, mcporter CLI, and OpenClaw cron system.
@@ -82,14 +81,14 @@ Leaderboard rank confirmation LAGS price. When an asset jumps from #31->#16 in o
 2. Create a custom strategy wallet: use `strategy_create_custom_strategy` via mcporter
 3. Fund the wallet via `strategy_top_up` with your budget
 4. Run setup: `python3 scripts/wolf-setup.py --wallet 0x... --strategy-id UUID --budget 6500 --chat-id 12345`
-5. Create the 7 OpenClaw crons using templates from `references/cron-templates.md`
+5. Create the 5 OpenClaw crons using templates from `references/cron-templates.md`
 6. The WOLF is hunting
 
 To add a second strategy, run `wolf-setup.py` again with a different wallet/budget. It adds to the registry.
 
 ---
 
-## Architecture — 7 Cron Jobs
+## Architecture — 5 Cron Jobs
 
 | # | Job | Interval | Session | Script | Purpose |
 |---|-----|----------|---------|--------|---------|
@@ -97,13 +96,9 @@ To add a second strategy, run `wolf-setup.py` again with a different wallet/budg
 | 2 | DSL Combined | **3min** | isolated | `scripts/dsl-combined.py` | Trailing stop exits for ALL open positions across ALL strategies |
 | 3 | SM Flip Detector | 5min | isolated | `scripts/sm-flip-check.py` | Cut positions where SM conviction collapses |
 | 4 | Watchdog | 5min | isolated | `scripts/wolf-monitor.py` | Per-strategy margin buffer, liq distances, rotation candidates |
-| 5 | Portfolio Update | 15min | isolated | (agent-driven) | Per-strategy PnL reporting to user |
-| 6 | Opportunity Scanner | 15min | **main** | `scripts/opportunity-scan-v6.py` | Deep-dive 4-pillar scoring with BTC macro, hourly trend, disqualifiers |
-| 7 | Health Check | 10min | isolated | `scripts/job-health-check.py` | Per-strategy orphan DSL detection, state validation |
+| 5 | Health Check | 10min | isolated | `scripts/job-health-check.py` | Per-strategy orphan DSL detection, state validation |
 
 **v6 change:** One set of crons for all strategies. Each script reads `wolf-strategies.json` and iterates all enabled strategies internally.
-
-**v6 change:** Opportunity Scanner v6 replaces the old scanner with BTC macro context, hourly trend filter, hard disqualifiers, parallel candle fetches, and cross-scan momentum tracking.
 
 ### Model Selection Per Cron — 3-Tier Approach
 
@@ -113,36 +108,34 @@ Configure per-cron in OpenClaw. Step down from your primary model for isolated c
 
 | Tier | Role | Crons | Example Model IDs |
 |------|------|-------|--------------------|
-| **Primary** | Complex judgment, multi-strategy routing | Emerging Movers, Opportunity Scanner | Your configured model (runs on main session) |
-| **Mid** | Structured tasks, script output parsing | DSL Combined, Portfolio Update, Health Check | `anthropic/claude-sonnet-4-20250514`, `openai/gpt-4o`, `google/gemini-2.0-flash` |
+| **Primary** | Complex judgment, multi-strategy routing | Emerging Movers | Your configured model (runs on main session) |
+| **Mid** | Structured tasks, script output parsing | DSL Combined, Health Check | `anthropic/claude-sonnet-4-20250514`, `openai/gpt-4o`, `google/gemini-2.0-flash` |
 | **Budget** | Simple threshold checks, binary decisions | SM Flip, Watchdog | `anthropic/claude-haiku-4-5`, `openai/gpt-4o-mini`, `google/gemini-2.0-flash-lite` |
 
 | Cron | Session | Model Tier | Reason |
 |------|---------|-----------|--------|
 | Emerging Movers | main | **Primary** | Multi-strategy routing judgment, entry decisions |
-| Opportunity Scanner | main | **Primary** | Complex 4-pillar analysis, conflict resolution |
 | DSL Combined | isolated | Mid | Script output parsing, rule-based close/alert |
-| Portfolio Update | isolated | Mid | Clearinghouse data formatting, no decisions |
 | Health Check | isolated | Mid | Rule-based file repair, action routing |
 | SM Flip Detector | isolated | Budget | Binary: conviction≥4 + 100 traders → close |
 | Watchdog | isolated | Budget | Threshold checks → alert |
 
-**Single-model option:** All 7 crons can run on one model. Simpler but costs more for the 5 isolated crons that do structured/binary work.
+**Single-model option:** All 5 crons can run on one model. Simpler but costs more for the 4 isolated crons that do structured/binary work.
 
 **Model ID gotchas:**
 - Pick one model per tier from your provider. The tier concept (Primary / Mid / Budget) matters more than the specific model — any provider's equivalent works.
 - Budget should be the cheapest model that can follow explicit if/then rules. Mid should handle structured JSON parsing reliably.
 - Agents are often not model-aware — they may suggest deprecated IDs (e.g. `claude-3-5-haiku-20241022`) or hallucinate model names. Always use the exact IDs from the table above.
 - If a cron fails to create or run due to an invalid model ID, fall back to your primary model for that cron. A working cron on the "wrong" tier is better than a broken cron.
-- When in doubt, use your primary model for all 7 crons (single-model option) and optimize tiers later.
+- When in doubt, use your primary model for all 5 crons (single-model option) and optimize tiers later.
 
 ## Cron Setup
 
 **Critical:** Crons are **OpenClaw crons**, NOT senpi crons. WOLF uses two session types:
-- **Main session** (`systemEvent`): Emerging Movers + Opportunity Scanner. These share the primary session context for accumulated routing knowledge.
-- **Isolated session** (`agentTurn`): DSL Combined, Portfolio, Health Check, SM Flip, Watchdog. Each runs in its own session — no context pollution, enables cheaper model tiers.
+- **Main session** (`systemEvent`): Emerging Movers. Shares the primary session context for accumulated routing knowledge.
+- **Isolated session** (`agentTurn`): DSL Combined, Health Check, SM Flip, Watchdog. Each runs in its own session — no context pollution, enables cheaper model tiers.
 
-Create each cron using the OpenClaw cron tool. The exact mandate text for each cron is in **`references/cron-templates.md`**. Read that file, replace the placeholders (`{TELEGRAM}`, `{SCRIPTS}`, and `{WORKSPACE}` in v6), and create all 7 crons.
+Create each cron using the OpenClaw cron tool. The exact mandate text for each cron is in **`references/cron-templates.md`**. Read that file, replace the placeholders (`{TELEGRAM}`, `{SCRIPTS}`, and `{WORKSPACE}` in v6), and create all 5 crons.
 
 **v6 simplification:** No more per-wallet/per-strategy placeholders in cron mandates. Scripts read all strategy info from the registry.
 
@@ -201,10 +194,6 @@ The agent DOES notify the user (via Telegram) after every action.
 **What:** Appears in top 20 from nowhere (wasn't in top 50 last scan).
 
 **Action:** Instant entry.
-
-### 5. Opportunity Scanner (Score 175+)
-
-Runs every 15min. v6 scanner with BTC macro context, hourly trend classification, and hard disqualifiers. Complements Emerging Movers as a secondary signal source for deeper technical analysis.
 
 ---
 
@@ -292,34 +281,6 @@ Auto-close if ROE >= 8% and high-water stale for 1 hour.
 
 ### DSL State File
 Each position gets `state/{strategyKey}/dsl-{ASSET}.json`. The combined runner iterates all active state files across all strategies. See `references/state-schema.md` for the full schema and critical gotchas (triggerPct not threshold, lockPct not retracePct, etc.).
-
----
-
-## Opportunity Scanner v6
-
-The v6 scanner addresses all reliability issues from the previous version:
-
-| Fix | What Changed |
-|-----|-------------|
-| **BTC Macro Context** | Stage 0 analyzes BTC 4h+1h trend. Prevents alt longs during BTC crashes. |
-| **Hourly Trend Filter** | `classify_hourly_trend()` analyzes swing structure. Counter-trend on hourly = hard skip. |
-| **Hard Disqualifiers** | 6 conditions that skip assets entirely (not just penalize score). |
-| **Parallel Fetches** | ThreadPoolExecutor for candle fetches (~20s vs ~60s). |
-| **Cross-Scan Momentum** | `scoreDelta` and `scanStreak` from scan history. |
-| **Configurable Thresholds** | Read from `history/scanner-config.json`. |
-| **Per-TF Error Recovery** | One failed timeframe doesn't kill the asset. |
-| **Position Awareness** | Checks ALL strategies' DSL states for conflicts. |
-| **No Cold Start** | First scan produces baseline results immediately. |
-
-### Hard Disqualifiers
-1. Counter-trend on hourly (the "$346 lesson")
-2. Extreme RSI (<20 shorts, >80 longs)
-3. Counter-trend on 4h with strength >50
-4. Volume dying (<0.5x on both timeframes)
-5. Heavy unfavorable funding (>50% annualized)
-6. BTC macro headwind >30 points
-
-Disqualified assets appear in output with `reason` and `wouldHaveScored` for transparency.
 
 ---
 
@@ -419,7 +380,6 @@ clamped to [1, maxLeverage]
 
 Conviction (0.0–1.0) determines where within a tier's range to land. It's **auto-derived** from scanner output:
 
-- **Opportunity Scanner**: normalized from `finalScore` (175→0.0, 350→1.0)
 - **Emerging Movers**: mapped from signal type (FIRST_JUMP=0.9, CONTRIB_EXPLOSION=0.8, IMMEDIATE_MOVER=0.7, NEW_ENTRY_DEEP=0.7, DEEP_CLIMBER=0.5)
 
 ### Override
@@ -437,7 +397,6 @@ Pass `--leverage N` to `open-position.py` to bypass auto-calculation (capped aga
 
 - **Watchdog blind spot for XYZ isolated:** The watchdog monitors cross-margin buffer but can't see isolated position liquidation distances in the same way. XYZ positions rely on DSL for protection.
 - **Health check only sees crypto wallet:** The health check can't see XYZ positions for margin calculations. Total equity may differ.
-- **Scanner needs history for momentum:** Cross-scan momentum (scoreDelta, scanStreak) requires at least 2 scans. First scan produces scored results immediately but without momentum data.
 
 ---
 
@@ -470,5 +429,4 @@ See `references/learnings.md` for known bugs, gotchas, and trading discipline ru
 | `scripts/dsl-combined.py` | DSL v4 combined trailing stop engine (all positions, all strategies) |
 | `scripts/sm-flip-check.py` | SM conviction flip detector (multi-strategy) |
 | `scripts/wolf-monitor.py` | Watchdog — per-strategy margin buffer + position health |
-| `scripts/opportunity-scan-v6.py` | Opportunity Scanner v6 (BTC macro, hourly trend, disqualifiers) |
 | `scripts/job-health-check.py` | Per-strategy orphan DSL / state validation |
