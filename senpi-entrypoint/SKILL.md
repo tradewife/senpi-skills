@@ -12,7 +12,7 @@ license: Apache-2.0
 compatibility: "Node.js, shell, Python 3, OpenClaw (optional — Step 5 cron)"
 metadata:
   author: Senpi
-  version: "1.2.1"
+  version: "1.2.2"
   platform: senpi
   exchange: hyperliquid
 ---
@@ -225,26 +225,12 @@ If the user asks to turn notifications off or back on, follow the procedure in
 
 ### "What is Senpi?" / "Summarize Senpi" / "Summarize skills and capabilities" / "How do I install skills?" / "What's new?"
 
-Use [references/about-senpi.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/about-senpi.md)
-as the single source for the summary. This is **explicit-ask only** — do not
-auto-insert this summary into normal onboarding steps.
+This is **explicit-ask only** — do not auto-insert this summary into normal
+onboarding steps.
 
-Default response order (keep compact and actionable):
-1. **What Senpi is** (short definition)
-2. **Core platform capabilities** (what users/agents can do)
-3. **Skills snapshot** (compact, grouped/high-signal list)
-4. **Install guidance** (what can be installed now; offer to perform installs for them)
-5. **What's new** (only from queued startup `UPDATE_OUTPUT`, if present)
-
-For "what's new", do not run a forced live check. Reuse startup-queued updates
-handled via
-[references/skill-update-checker.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/skill-update-checker.md).
-If there are no queued updates, return a neutral status and offer to run:
-- a global skill update
-- a fresh live skill catalog fetch
-
-Do not tell users to run CLI commands themselves. Execute commands on the user's
-behalf whenever they ask to install, update, or refresh.
+When asked, load and follow
+[references/about-senpi.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/about-senpi.md)
+(`Summary Response Contract` section) for order, depth, and command behavior.
 
 ### "What skills should I install?" / "What should I use for [goal]?"
 

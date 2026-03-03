@@ -3,6 +3,30 @@
 Senpi is an agent-first trading platform on Hyperliquid that lets users discover
 opportunities, automate strategies, and manage risk from one MCP-connected workflow.
 
+## Summary Response Contract
+
+Use this section only for explicit summary questions such as:
+- "What is Senpi?"
+- "Summarize Senpi"
+- "Summarize skills/capabilities"
+- "How do I install skills?"
+- "What's new?"
+
+Do not auto-insert this summary during normal onboarding.
+
+Default response order (compact + actionable):
+1. What Senpi is (one short definition)
+2. Core capabilities
+3. Compact skill snapshot
+4. Install guidance
+5. What's new
+
+Behavior rules:
+- Use queued startup `UPDATE_OUTPUT` for "what's new" when available.
+- Do not force a live update check in summary responses.
+- If no updates are queued, return neutral status and offer to run update/catalog refresh.
+- Do not tell users to run CLI commands themselves; run install/update/list actions on their behalf.
+
 ## Core Capabilities
 
 - Discover high-performing traders and market opportunities (Discovery + market tools)
