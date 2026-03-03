@@ -246,6 +246,7 @@ if len(prev_scans) >= MIN_SCANS_FOR_TREND:
             alerts.append({
                 "token": token,
                 "dex": dex if dex else None,
+                "qualifiedAsset": f"xyz:{token}" if dex == "xyz" else token,
                 "signal": f"{token} {dir_label}",
                 "direction": dir_label,
                 "currentRank": current_rank,

@@ -210,13 +210,13 @@ def mcporter_call(tool, retries=3, timeout=30, **kwargs):
     """Call a Senpi MCP tool via mcporter. Returns the `data` portion of the response.
 
     Standardized invocation across all wolf-strategy scripts:
-      mcporter call senpi.{tool} key=value ...
+      mcporter call senpi.{tool} --args '{...}'
 
     Args:
         tool: Tool name (e.g. "market_get_prices", "close_position").
         retries: Number of attempts before giving up.
         timeout: Subprocess timeout in seconds.
-        **kwargs: Tool arguments as key=value pairs.
+        **kwargs: Tool arguments passed as a single --args JSON blob.
 
     Returns:
         The `data` dict from the MCP response envelope.
@@ -224,22 +224,13 @@ def mcporter_call(tool, retries=3, timeout=30, **kwargs):
     Raises:
         RuntimeError: If all retries fail or the tool returns success=false.
     """
-    args = []
-    for k, v in kwargs.items():
-        if v is None:
-            continue
-        if isinstance(v, (list, dict)):
-            args.append(f"{k}={json.dumps(v)}")
-        elif isinstance(v, bool):
-            args.append(f"{k}={json.dumps(v)}")
-        else:
-            args.append(f"{k}={v}")
+    filtered_args = {k: v for k, v in kwargs.items() if v is not None}
 
     mcporter_bin = os.environ.get("MCPORTER_CMD", "mcporter")
-    cmd_str = " ".join(
-        [shlex.quote(mcporter_bin), "call", shlex.quote(f"senpi.{tool}")]
-        + [shlex.quote(a) for a in args]
-    )
+    cmd = [mcporter_bin, "call", f"senpi.{tool}"]
+    if filtered_args:
+        cmd.extend(["--args", json.dumps(filtered_args)])
+    cmd_str = " ".join(shlex.quote(c) for c in cmd)
     last_error = None
 
     for attempt in range(retries):

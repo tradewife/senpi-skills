@@ -157,8 +157,12 @@ def main():
         fail("position_already_exists", asset=clean_asset,
              strategyKey=strategy_key)
 
-    # 5. Detect dex
+    # 5. Detect dex (with max-leverage fallback for XYZ assets passed without prefix)
     is_xyz = asset.startswith("xyz:") or cfg.get("dex") == "xyz"
+    if not is_xyz and not asset.startswith("xyz:"):
+        xyz_key = f"xyz:{asset}"
+        if xyz_key in max_lev_data and asset not in max_lev_data:
+            is_xyz = True
     dex = "xyz" if is_xyz else "hl"
     coin = asset if asset.startswith("xyz:") else (f"xyz:{asset}" if is_xyz else asset)
 
