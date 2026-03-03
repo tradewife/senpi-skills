@@ -53,7 +53,7 @@ Behavior rules:
 - Apply risk controls such as dynamic stop-loss and budget-aware orchestration
 - Trade broad markets through Senpi's Hyperliquid-based stack (crypto perps and more)
 
-## Full Skill Catalog (Telegram-Friendly)
+## Full Skill Catalog
 
 - `senpi-entrypoint`: onboarding flow for Senpi setup, discovery, and first-trade guidance.
 - `senpi-onboard`: account + API key + MCP setup workflow.
