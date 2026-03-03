@@ -53,13 +53,13 @@ The script syncs the current effective floor to Hyperliquid as a native stop-los
 ## How It Works
 
 ### Phase 1: "Let It Breathe" (uPnL < first tier)
-- **Wide retrace**: 3% from high water mark
+- **Wide retrace**: 3% ROE from high water (converted to price via ÷ leverage so 3% = 3% ROE, not 3% price)
 - **Patient**: requires 3 consecutive breach checks below floor
 - **Absolute floor**: hard price floor to cap max loss
 - **Goal**: Don't get shaken out before the trade develops
 
 ### Phase 2: "Lock the Bag" (uPnL ≥ first tier)
-- **Tight retrace**: 1.5% from high water mark (or per-tier retrace)
+- **Tight retrace**: 1.5% ROE from high water (or per-tier retrace), leverage-adjusted
 - **Quick exit**: 1–2 consecutive breaches to close
 - **Tier floors**: ratchet up as profit grows — never go back down
 - **Effective floor**: best of tier floor and trailing floor
@@ -83,6 +83,8 @@ Tiers are defined as `{triggerPct, lockPct}` pairs. Each tier can optionally spe
 
 The tier floor locks a **fraction of the move from entry to high water** (lockPct % of that range). The gap between trigger and lock gives breathing room so a minor pullback after hitting a tier doesn't immediately close. **Ratchets never go down** — once you hit Tier 2, Tier 1's floor is permanently superseded.
 
+**Retrace is ROE-based.** The configured retrace (e.g. 0.03 = 3%) is interpreted as **return on equity**, not raw price. The script converts to price via `retrace / leverage`, so at 10x leverage 3% ROE = 0.3% price move. This way "3%" means 3% ROE at any leverage, not 3% price (which would be 30% ROE at 10x).
+
 See [references/tier-examples.md](references/tier-examples.md) for LONG and SHORT worked examples with exact price calculations.
 
 ### Direction Matters
@@ -94,7 +96,7 @@ See [references/tier-examples.md](references/tier-examples.md) for LONG and SHOR
 | **Tier floor** | `entry + (hw − entry) × lockPct / 100` | `entry − (entry − hw) × lockPct / 100` |
 | **Absolute floor** | Below entry (e.g., entry × 0.97) | Above entry (e.g., entry × 1.03) |
 | **High water** | Highest price seen | Lowest price seen |
-| **Trailing floor** | `hw × (1 - retrace)` | `hw × (1 + retrace)` |
+| **Trailing floor** | `hw × (1 - retrace/leverage)` | `hw × (1 + retrace/leverage)` |
 | **Breach** | `price ≤ floor` | `price ≥ floor` |
 | **uPnL** | `(price - entry) × size` | `(entry - price) × size` |
 

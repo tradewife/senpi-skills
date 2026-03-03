@@ -387,33 +387,39 @@ def apply_tier_upgrades(
 def compute_effective_floor(
     state: dict, phase: int, tier_idx: int, tier_floor: float | None, hw: float, is_long: bool
 ) -> tuple[float, float, int, float]:
-    """Return (effective_floor, trailing_floor, breaches_needed, retrace)."""
+    """Return (effective_floor, trailing_floor, breaches_needed, retrace).
+    Retrace is stored as ROE fraction (e.g. 0.03 = 3% ROE); we convert to price via / leverage
+    so that 3% means 3% ROE, not 3% price (which would be 30% ROE at 10x).
+    """
     tiers = state["tiers"]
+    leverage = max(1, state.get("leverage", 1))
     if phase == 1:
-        retrace = state["phase1"]["retraceThreshold"]
+        retrace_roe = state["phase1"]["retraceThreshold"]
+        retrace_price = retrace_roe / leverage
         breaches_needed = state["phase1"]["consecutiveBreachesRequired"]
         abs_floor = state["phase1"]["absoluteFloor"]
         if is_long:
-            trailing_floor = round(hw * (1 - retrace), 4)
+            trailing_floor = round(hw * (1 - retrace_price), 4)
             effective_floor = max(abs_floor, trailing_floor)
         else:
-            trailing_floor = round(hw * (1 + retrace), 4)
+            trailing_floor = round(hw * (1 + retrace_price), 4)
             effective_floor = min(abs_floor, trailing_floor)
-        return effective_floor, trailing_floor, breaches_needed, retrace
+        return effective_floor, trailing_floor, breaches_needed, retrace_roe
 
-    retrace = (
+    retrace_roe = (
         tiers[tier_idx].get("retrace", state["phase2"]["retraceThreshold"])
         if tier_idx >= 0
         else state["phase2"]["retraceThreshold"]
     )
+    retrace_price = retrace_roe / leverage
     breaches_needed = state["phase2"]["consecutiveBreachesRequired"]
     if is_long:
-        trailing_floor = round(hw * (1 - retrace), 4)
+        trailing_floor = round(hw * (1 - retrace_price), 4)
         effective_floor = max(tier_floor or 0, trailing_floor)
     else:
-        trailing_floor = round(hw * (1 + retrace), 4)
+        trailing_floor = round(hw * (1 + retrace_price), 4)
         effective_floor = min(tier_floor or float("inf"), trailing_floor)
-    return effective_floor, trailing_floor, breaches_needed, retrace
+    return effective_floor, trailing_floor, breaches_needed, retrace_roe
 
 
 def update_breach_count(state: dict, breached: bool, decay_mode: str) -> int:

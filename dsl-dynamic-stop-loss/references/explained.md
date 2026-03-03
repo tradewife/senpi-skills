@@ -21,8 +21,8 @@ Some cron systems (e.g. OpenClaw) support two schedule types:
 |------|--------|
 | **DSL** | Dynamic Stop Loss — a **trailing** stop that moves in your favor as price moves. Not a fixed price stop. |
 | **High water (HW)** | The best price seen so far in your favor. **LONG:** highest price since entry. **SHORT:** lowest price since entry. Used as the reference for “how far price has moved” and for trailing floors. |
-| **Retrace** | How far price is allowed to **pull back** from the high-water mark before we consider it a “breach.” Expressed as a fraction (e.g. 0.03 = 3%). **LONG:** floor = `hw × (1 - retrace)`. **SHORT:** floor = `hw × (1 + retrace)`. |
-| **Trailing floor** | A floor derived from high water and retrace: “price must not go below/above this level relative to HW.” **LONG:** `hw × (1 - retrace)`. **SHORT:** `hw × (1 + retrace)`. |
+| **Retrace** | How far (in **ROE** terms) price is allowed to pull back from the high-water mark before we consider it a breach. Stored as a fraction (e.g. 0.03 = 3% ROE). The script converts to price via ÷ leverage so 3% means 3% ROE at any leverage. **LONG:** floor = `hw × (1 - retrace/leverage)`. **SHORT:** floor = `hw × (1 + retrace/leverage)`. |
+| **Trailing floor** | A floor derived from high water and retrace (ROE-based, then ÷ leverage for price). **LONG:** `hw × (1 - retrace/leverage)`. **SHORT:** `hw × (1 + retrace/leverage)`. |
 | **Absolute floor** | Phase 1 only. A hard price limit that caps maximum loss (e.g. 3% of margin). **LONG:** below entry. **SHORT:** above entry. The effective floor in Phase 1 is never worse than this. |
 | **Tier** | A profit milestone. Each tier has a **trigger** (ROE % at which the tier activates) and a **lock** (% of the entry→HW range to lock as a floor). Tiers ratchet: once you hit Tier 2, Tier 1’s floor is superseded and never goes back. |
 | **Tier floor** | The locked price floor for the current tier. **LONG:** `entry + (hw - entry) × lockPct/100`. **SHORT:** `entry - (entry - hw) × lockPct/100`. Ratchets only in the protective direction (up for LONG, down for SHORT). |
@@ -51,13 +51,13 @@ They answer different questions:
 | **Analogy** | “The stop is always N% behind the high water.” (Like a trailing stop distance.) | “At 10% profit I lock a floor; at 20% I lock a higher floor; …” (Like profit-taking steps.) |
 
 **They work together in Phase 2:**  
-You have both a **tier floor** (locked from when you hit the tier) and a **trailing floor** (HW × (1 ± retrace)). The **effective floor** is the **best** of the two: for LONG we use the **higher** of tier floor and trailing floor; for SHORT the **lower**. So:
+You have both a **tier floor** (locked from when you hit the tier) and a **trailing floor** (HW × (1 ± retrace/leverage)). The **effective floor** is the **best** of the two: for LONG we use the **higher** of tier floor and trailing floor; for SHORT the **lower**. So:
 
 - **Retrace** = how closely the stop trails the high water (one number, or per-tier override).
 - **Tier** = which profit step you’re on and what locked floor that step gives you (trigger + lock; optionally its own retrace for the trailing part).
 
-**Simple picture (LONG):**  
-- Entry $100, HW $110. Retrace 3% → trailing floor = 110 × 0.97 = $106.70.  
+**Simple picture (LONG, 10x leverage):**  
+- Entry $100, HW $110. Retrace 3% ROE → price retrace = 3%/10 = 0.3% → trailing floor = 110 × (1 - 0.003) = $109.67.  
 - You hit Tier 1 (trigger 10%, lock 5%) → tier floor = 100 + (110−100)×5/100 = $100.50.  
 - Effective floor = max(100.50, 106.70) = **$106.70** (the trailing floor is higher, so it wins).  
 If price later pulls back to $107, HW stays $110; if it pulls back to $106, you’re below the floor → breach.
@@ -101,8 +101,8 @@ For one state file:
 6. **Tier upgrades:**  
    For each tier whose `triggerPct` ≤ current `upnl_pct`: upgrade to that tier; set tier floor = entry + (hw−entry)×lockPct/100 (LONG) or entry − (entry−hw)×lockPct/100 (SHORT). **Ratchet:** never set a tier floor less protective than the stored one. If we cross `phase2TriggerTier`, switch to Phase 2 and reset breach count.
 7. **Effective floor:**  
-   - **Phase 1:** trailing_floor = hw×(1−retrace) (LONG) or hw×(1+retrace) (SHORT); effective_floor = max(absolute_floor, trailing_floor) (LONG) or min(absolute_floor, trailing_floor) (SHORT).  
-   - **Phase 2:** same trailing from hw; effective_floor = max(tier_floor, trailing_floor) (LONG) or min(tier_floor, trailing_floor) (SHORT).
+   - **Phase 1:** trailing_floor = hw×(1−retrace/leverage) (LONG) or hw×(1+retrace/leverage) (SHORT); effective_floor = max(absolute_floor, trailing_floor) (LONG) or min(absolute_floor, trailing_floor) (SHORT).  
+   - **Phase 2:** same trailing from hw (retrace in ROE, ÷ leverage for price); effective_floor = max(tier_floor, trailing_floor) (LONG) or min(tier_floor, trailing_floor) (SHORT).
 8. **Breach check:**  
    breached = (price ≤ effective_floor) for LONG or (price ≥ effective_floor) for SHORT.
 9. **Breach count:**  
@@ -118,8 +118,8 @@ For one state file:
 
 **Setup:** 10x leverage, entry **$28.87**, size **1890**, asset HYPE (main dex).
 
-- **Phase 1:** retrace 3%, 3 consecutive breaches, absolute floor $28.00.
-- **Phase 2:** starts at Tier 1; retrace 1.5%; 2 consecutive breaches.
+- **Phase 1:** retrace 3% ROE (0.3% price at 10x), 3 consecutive breaches, absolute floor $28.00.
+- **Phase 2:** starts at Tier 1; retrace 1.5% ROE; 2 consecutive breaches.
 - **Tiers:**  
   Tier 1: trigger 10%, lock 5%  
   Tier 2: trigger 20%, lock 14%  
@@ -130,8 +130,8 @@ For one state file:
 - HW = 28.87 (entry).
 - uPnL = (28.50 − 28.87)×1890 = −698.43; margin = 28.87×1890/10 ≈ 5460.43; **upnl_pct ≈ −12.8%**.
 - No tier (all triggerPct > 0). Phase 1.
-- Trailing floor = 28.87×(1−0.03) ≈ 28.00; effective_floor = max(28.00, 28.00) = **28.00**.
-- Price 28.50 > 28.00 → not breached; breach_count = 0.
+- Trailing floor = 28.87×(1−0.03/10) = 28.87×0.997 ≈ **28.78**; effective_floor = max(28.00, 28.78) = **28.78**.
+- Price 28.50 > 28.78 → not breached; breach_count = 0.
 - No close. State saved; one JSON line printed.
 
 **Run 2 — Price = $29.20**
@@ -140,29 +140,23 @@ For one state file:
 - uPnL = (29.20−28.87)×1890 ≈ 623.7; upnl_pct ≈ **11.4%**.
 - 11.4% ≥ 10% → **Tier 1** activates. phase2TriggerTier=1 → **Phase 2**.
 - Tier floor = 28.87 + (29.20−28.87)×5/100 = 28.87 + 0.0165 ≈ **28.89**.
-- Trailing floor = 29.20×(1−0.015) ≈ **28.76**.
-- Effective floor = max(28.89, 28.76) = **28.89**.
-- Price 29.20 > 28.89 → not breached; breach_count = 0.
+- Trailing floor = 29.20×(1−0.015/10) = 29.20×0.9985 ≈ **29.16**.
+- Effective floor = max(28.89, 29.16) = **29.16**.
+- Price 29.20 > 29.16 → not breached; breach_count = 0.
 - No close. State saved; output includes `tier_changed: true`, Tier 1.
 
 **Run 3 — Price = $29.10**
 
 - HW stays **29.20** (price didn’t make a new high).
 - uPnL = (29.10−28.87)×1890 ≈ 434.7; upnl_pct ≈ 8%. Still Tier 1.
-- Tier floor still **28.89**; trailing = 29.20×(1−0.015) ≈ **28.76**.
-- Effective floor = max(28.89, 28.76) = **28.89**.
-- Price 29.10 > 28.89 → not breached. Breach count stays 0.
+- Tier floor still **28.89**; trailing = 29.20×(1−0.015/10) ≈ **29.16**.
+- Effective floor = max(28.89, 29.16) = **29.16**.
+- Price **29.10 < 29.16** → **breached**. breach_count = 1/2.
 
 **Run 4 — Price = $28.85**
 
-- HW still **29.20**.
-- Effective floor still **28.89**.
-- Price **28.85 ≤ 28.89** → **breached**. breach_count = 1.
-- breaches_needed = 2 → no close yet. State saved; output shows breached: true, breach 1/2.
-
-**Run 5 — Price = $28.80**
-
-- Still breached (28.80 ≤ 28.89). breach_count = 2.
+- HW still **29.20**. Effective floor still **29.16**.
+- Price **28.85 ≤ 29.16** → **breached**. breach_count = 2.
 - 2 ≥ 2 → **should_close**. Script calls `close_position`; on success deletes state file and prints `closed: true`. Agent alerts user.
 
 ---
