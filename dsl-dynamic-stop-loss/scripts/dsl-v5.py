@@ -551,7 +551,8 @@ def sync_sl_to_hyperliquid(
         orders, orders_err = _mcp_strategy_get_open_orders(wallet, dex)
         if orders_err:
             return False, False, f"edit_ok_but_resolve_failed: {orders_err}"
-        oid = _resolve_sl_order_id_after_edit(wallet, dex, coin, effective_floor, orders)
+        # Use rounded price to match what was sent to Hyperliquid (round(..., 4))
+        oid = _resolve_sl_order_id_after_edit(wallet, dex, coin, round(effective_floor, 4), orders)
 
     state["lastSyncedFloorPrice"] = round(effective_floor, 4)
     state["slOrderIdUpdatedAt"] = now
@@ -822,16 +823,25 @@ def process_one_position(state_file: str, strategy_id: str, now: str) -> None:
     last_synced = state.get("lastSyncedFloorPrice")
     if state.get("slOrderId") is not None and last_synced is not None:
         orders, _ = _mcp_strategy_get_open_orders(state.get("wallet", ""), dex)
-        oids_for_coin = [o.get("oid") for o in orders if isinstance(o, dict) and o.get("coin") == asset]
+        oids_for_coin = []
+        for o in orders:
+            if not isinstance(o, dict) or o.get("coin") != asset:
+                continue
+            oid = o.get("oid")
+            if oid is not None:
+                try:
+                    oids_for_coin.append(int(oid))
+                except (TypeError, ValueError):
+                    pass  # ignore non-int OIDs
         if state["slOrderId"] not in oids_for_coin:
             state["lastSyncedFloorPrice"] = None  # force sync below
 
     had_sl_order_before = state.get("slOrderId") is not None
-    # Sync SL to Hyperliquid: initial (no slOrderId) or floor changed
+    effective_floor_rounded = round(effective_floor, 4)
+    # Sync SL to Hyperliquid: never synced or floor changed (compare rounded to match stored lastSyncedFloorPrice)
     need_sync = (
-        state.get("slOrderId") is None
-        or state.get("lastSyncedFloorPrice") is None
-        or abs((state.get("lastSyncedFloorPrice") or 0) - effective_floor) > 1e-9
+        state.get("lastSyncedFloorPrice") is None
+        or abs((state.get("lastSyncedFloorPrice") or 0) - effective_floor_rounded) > 1e-9
     )
     sl_synced_this_tick = False
     if need_sync:
