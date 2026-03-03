@@ -65,18 +65,22 @@ Token burn is the single biggest operational cost. These patterns reduce it dram
 
 ### 2.1 Model Tiering
 
-Classify each cron job by the reasoning it requires. The 3-tier approach maps directly to session type (see Section 2.6):
+**2-tier (Mid/Budget) is the default.** Most crons are self-contained — the script output provides all context the LLM needs. Primary tier (main session) is rarely required.
 
-| Tier | Use When | Example Model IDs |
-|------|----------|-------------------|
-| **Primary** | Complex judgment, multi-strategy routing, entry decisions | Your configured model (runs on main session) |
-| **Mid** | Structured tasks, script output parsing, rule-based actions | `anthropic/claude-sonnet-4-20250514`, `openai/gpt-4o`, `google/gemini-2.0-flash` |
-| **Budget** | Simple threshold checks, binary decisions | `anthropic/claude-haiku-4-5`, `openai/gpt-4o-mini`, `google/gemini-2.0-flash-lite` |
+| Tier | Use When | Session Type | Example Model IDs |
+|------|----------|-------------|-------------------|
+| **Mid** | Structured tasks, script output parsing, rule-based actions, routing decisions | Isolated | `anthropic/claude-sonnet-4-20250514`, `openai/gpt-4o`, `google/gemini-2.0-flash` |
+| **Budget** | Simple threshold checks, binary decisions, heartbeat-heavy crons | Isolated | `anthropic/claude-haiku-4-5`, `openai/gpt-4o-mini`, `google/gemini-2.0-flash-lite` |
 
-Most crons should be Mid or Budget. Only crons requiring accumulated context or complex judgment need Primary.
+**Before reaching for Primary tier**, ask: does this cron genuinely need cross-run accumulated context (e.g., remembering routing decisions from previous runs)? If the script can include all necessary context in its JSON output — strategy slots, positions, routing state — the cron can run on Mid tier in an isolated session.
 
-- **Primary** crons run on the main session and share context (position history, routing decisions).
-- **Mid / Budget** crons run on isolated sessions with the model specified in the cron payload.
+**Primary tier** (main session) is available when truly needed:
+
+| Tier | Use When | Session Type |
+|------|----------|-------------|
+| **Primary** | Cross-run context is essential — the LLM must remember state from previous cron executions | Main |
+
+Even complex routing crons can work on Mid tier when scripts surface complete context (available slots, current positions, routing history) in their JSON output. Only promote to Primary when the decision depends on conversational memory that no script can provide.
 
 Document the tier and session type for each cron in your `cron-templates.md`.
 
@@ -162,10 +166,18 @@ Crons run in one of two session types:
 
 **Default to isolated.** Most crons are self-contained: run script → parse JSON → act or HEARTBEAT_OK. Only promote to main session when the cron genuinely needs cross-run context (e.g., remembering which strategies were routed to previously).
 
+**Isolation decision checklist — before promoting any cron to main session, ask:**
+
+1. Does this cron need to **remember something from a previous run** that the script cannot provide?
+2. If the script output contains everything needed for the decision (positions, slots, routing context, state) → **isolated**.
+3. Even entry/routing crons can be isolated when the script surfaces strategy slots, current positions, and routing context in its JSON output.
+4. If the only reason for main session is "it's complex" — that's not sufficient. Complexity belongs in the script, not in accumulated LLM context.
+
 **Why this matters:**
 - Isolated crons don't pollute the main session's context window with repetitive heartbeats
 - Cheaper models (Mid/Budget) run on isolated sessions, reducing cost
 - Main session stays lean — only crons that need shared context contribute to it
+- Isolated sessions prevent re-firing of informational warnings every cycle (no memory = no stale state)
 
 ---
 
@@ -859,6 +871,52 @@ Cron template placeholders must match the actual file location scope. Common sco
 
 Verify placeholder accuracy by cross-checking against the config loader (e.g., `wolf_config.py`) which defines the canonical paths.
 
+### 7.10 Cron Heartbeat Monitoring
+
+Detect stuck or dead crons by writing a heartbeat at the start of each script execution. A separate health-check cron reads all heartbeats and alerts when any cron hasn't reported in.
+
+**Script-side — write heartbeat:**
+
+```python
+import json, os, time
+from my_skill_config import atomic_write
+
+HEARTBEAT_FILE = os.path.join(WORKSPACE, "state", "cron-heartbeats.json")
+
+def heartbeat(cron_name):
+    """Record this cron's last execution time."""
+    try:
+        with open(HEARTBEAT_FILE) as f:
+            beats = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        beats = {}
+    beats[cron_name] = {"lastRun": time.time(), "status": "ok"}
+    atomic_write(HEARTBEAT_FILE, beats)
+
+# Call at the top of every script
+heartbeat("emerging_movers")
+```
+
+**Health-check cron — read and alert:**
+
+```python
+stale_threshold = interval_seconds * 3  # e.g., 3min cron → 9min threshold
+
+for name, info in beats.items():
+    age = time.time() - info["lastRun"]
+    if age > stale_threshold:
+        alerts.append(f"STALE CRON: {name} last ran {age/60:.0f}m ago (threshold: {stale_threshold/60:.0f}m)")
+```
+
+**Key principles:**
+- Threshold should be ~3x the cron's expected interval (gives room for occasional delays)
+- Uses `atomic_write` to the shared heartbeat file — same crash-safety as all state writes
+- Health-check cron itself should run on Budget tier (simple threshold comparison)
+
+### 7.11 Cron Pruning
+
+Periodically evaluate each cron's token cost vs. value delivered. If a cron rarely produces actionable signals, consider removing it or increasing its interval. Track the ratio of `HEARTBEAT_OK` runs to actionable runs — a cron that's 99% heartbeats is burning tokens for marginal value. Fewer, more focused crons are better than many low-value crons.
+
 ---
 
 ## 8. Defensive Coding
@@ -988,6 +1046,41 @@ path = os.path.join(state_dir, f"dsl-{clean_coin}.json")
 
 Always strip prefixes at the boundary where you create file paths, not inside business logic.
 
+### 8.9 Dynamic Parameter Calculation
+
+Compute operational parameters from config + context rather than hardcoding tiers. Instead of maintaining separate value tables per budget size or risk level, use a formula that scales with the inputs.
+
+```python
+# BAD — hardcoded leverage tiers
+if budget < 500:
+    leverage = 3
+elif budget < 2000:
+    leverage = 5
+else:
+    leverage = 10
+
+# GOOD — risk-driven calculation from config
+risk_tiers = config.get("riskTiers", {
+    "conservative": {"min": 0.1, "max": 0.3},
+    "moderate":     {"min": 0.3, "max": 0.6},
+    "aggressive":   {"min": 0.6, "max": 0.9}
+})
+
+risk_label = config.get("riskLabel", "moderate")
+tier = risk_tiers[risk_label]
+max_leverage = config.get("maxLeverage", 10)
+
+# leverage = maxLeverage × riskRange × conviction
+leverage = round(max_leverage * tier["max"] * conviction_score, 1)
+leverage = max(1, min(leverage, max_leverage))  # clamp to bounds
+```
+
+**Key principles:**
+- Define risk tiers in config with percentage ranges — not in code
+- Scripts compute the parameter and include it in the output — don't leave math to the LLM
+- The formula `parameter = maxValue × riskRange × conviction` generalizes to margin sizing, position sizing, stop-loss distances, and any tunable operational parameter
+- Clamping (`max/min`) prevents out-of-bounds values regardless of input
+
 ---
 
 ## 9. Script Output Contract
@@ -1054,6 +1147,45 @@ for pos in positions:
 ```
 
 **Why:** Budget/Mid models waste tokens reasoning about non-actionable items. Every item in the output array implies "do something with this." Filtering at the script level reduces tokens and prevents false-positive actions.
+
+### 9.6 Notification Decision Ownership
+
+**Scripts own notification logic, not the LLM.** The script builds a `notifications` array with pre-formatted, ready-to-send messages. The cron mandate simply sends them — no judgment required.
+
+```python
+# Script builds notifications list
+notifications = []
+for item in closed_positions:
+    notifications.append(f"CLOSED {item['asset']}: {item['reason']} | PnL: {item['pnl']}")
+
+for item in opened_positions:
+    notifications.append(f"OPENED {item['asset']} {item['direction']} | Margin: ${item['margin']}")
+
+output["notifications"] = notifications
+```
+
+The cron mandate becomes minimal:
+
+```
+Send each message in `notifications` to Telegram ({TELEGRAM}).
+If `notifications` is empty → HEARTBEAT_OK.
+```
+
+**Why this matters:**
+- Isolated sessions have no memory — without script-owned logic, the LLM re-fires informational warnings every cycle
+- Budget/Mid models misapply complex notification rules (e.g., "only alert on first occurrence" requires state they don't have)
+- Notification spam from non-actionable alerts is the #1 user complaint
+
+**Notification Policy** — what to include in the `notifications` array:
+
+| NOTIFY (include in array) | NEVER NOTIFY (omit from array) |
+|---------------------------|-------------------------------|
+| Trade actions taken (open, close, adjust) | Warnings without action taken |
+| Auto-fixes applied (orphan cleanup, state repair) | Informational output (market summary, scan stats) |
+| Critical alerts requiring user attention | Transient errors (retried successfully) |
+| Position state changes (liquidation risk, TP hit) | Internal bookkeeping (heartbeats, state updates) |
+
+**Rule of thumb:** If the notification doesn't prompt the user to do something or inform them of something that already happened, it doesn't belong in the array.
 
 ---
 
@@ -1164,3 +1296,10 @@ Before shipping a new skill, verify:
 - [ ] Dead/legacy code deleted (git history is the reference)
 - [ ] Script output contains only actionable items — non-actionable data filtered at script level
 - [ ] Cron template placeholders match actual file location scope (workspace root vs skill dir)
+- [ ] Notifications owned by the script (`notifications` array) — LLM just sends, no judgment
+- [ ] Notification policy applied: only trade actions, auto-fixes, and critical alerts in the array
+- [ ] Cron heartbeat written at script start; health-check cron monitors for stale heartbeats
+- [ ] Each cron evaluated for token cost vs. value — low-signal crons removed or interval increased
+- [ ] Operational parameters (leverage, margin, sizing) computed by script from config, not hardcoded tiers
+- [ ] Isolation decision verified: cron only uses main session if cross-run memory is genuinely required
+- [ ] 2-tier model (Mid/Budget) used by default; Primary tier justified in cron docs if used
