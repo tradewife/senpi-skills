@@ -24,8 +24,8 @@ Default response order (compact + actionable):
 
 Behavior rules:
 - Use queued startup `UPDATE_OUTPUT` for "what's new" when available.
-- Do not force a live update check in summary responses.
-- If no updates are queued, do not mention "what's new" at all.
+- If no queued updates exist, run one fresh update check before deciding.
+- If both queued and fresh checks show no updates, do not mention "what's new" at all.
 - Do not mention CLI/commands in user-facing summary replies.
 - If user wants install/setup help, offer to handle it for them directly.
 - Present the entire skill catalog as bullet points (no tables).
@@ -62,10 +62,26 @@ Keep this user-facing and non-technical:
 ## What's New
 
 Use queued updates from the entrypoint startup pending file
-(`$SENPI_STATE_DIR/pending-skill-updates.json` when present). Do not force a
-live check in summary responses.
+(`$SENPI_STATE_DIR/pending-skill-updates.json` when present).
 
-If no updates are queued, skip this section in the reply.
+If no queued updates exist, run one live check with the checker script:
+
+```bash
+SENPI_ENTRYPOINT_SCRIPTS=$(node -e "
+  const path = require('path'), os = require('os'), fs = require('fs');
+  const p = path.join(os.homedir(), '.agents', 'skills', 'senpi-entrypoint', 'scripts');
+  console.log(fs.existsSync(path.join(p, 'check-skill-updates.py')) ? p : '');
+" 2>/dev/null)
+
+if [ -n \"$SENPI_ENTRYPOINT_SCRIPTS\" ]; then
+  LIVE_UPDATE_OUTPUT=$(python3 \"$SENPI_ENTRYPOINT_SCRIPTS/check-skill-updates.py\" 2>/dev/null || true)
+fi
+```
+
+Rendering rule:
+- Prefer queued `UPDATE_OUTPUT` when it contains updates.
+- Otherwise use `LIVE_UPDATE_OUTPUT` if it contains updates.
+- If both are `HEARTBEAT_OK` / empty / invalid, skip this section in the reply.
 
 ## Platform Reference
 
