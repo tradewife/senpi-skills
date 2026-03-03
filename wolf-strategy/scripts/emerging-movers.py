@@ -31,7 +31,7 @@ import json, sys, os
 from datetime import datetime, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from wolf_config import atomic_write, mcporter_call, load_all_strategies, dsl_state_glob, heartbeat, SIGNAL_CONVICTION, WORKSPACE
+from wolf_config import atomic_write, mcporter_call, mcporter_call_safe, load_all_strategies, dsl_state_glob, heartbeat, SIGNAL_CONVICTION, WORKSPACE
 
 heartbeat("emerging_movers")
 
@@ -350,30 +350,59 @@ alerts.sort(key=lambda a: (
     len(a["reasons"])
 ), reverse=True)
 
-# ─── Slot availability per strategy ───
+# ─── Slot availability per strategy (clearinghouse-backed) ───
 import glob as globmod
 strategy_slots = {}
 try:
     all_strategies = load_all_strategies()
     for key, cfg in all_strategies.items():
         max_slots = cfg.get("slots", 2)
-        active_count = 0
+        wallet = cfg.get("wallet", "")
+
+        # Count DSL state files with active=True
+        dsl_active_count = 0
         for sf in globmod.glob(dsl_state_glob(key)):
             try:
                 with open(sf) as f:
                     s = json.load(f)
                 if s.get("active"):
-                    active_count += 1
+                    dsl_active_count += 1
             except (json.JSONDecodeError, IOError, KeyError, AttributeError):
                 continue
+
+        # Cross-check against on-chain positions
+        on_chain_count = 0
+        on_chain_coins = []
+        if wallet:
+            ch_data = mcporter_call_safe("strategy_get_clearinghouse_state",
+                                          strategy_wallet=wallet)
+            if ch_data:
+                for section_key in ("main", "xyz"):
+                    section = ch_data.get(section_key, {})
+                    for p in section.get("assetPositions", []):
+                        if not isinstance(p, dict):
+                            continue
+                        pos = p.get("position", {})
+                        coin = pos.get("coin", "")
+                        szi = float(pos.get("szi", 0))
+                        if coin and szi != 0:
+                            on_chain_count += 1
+                            on_chain_coins.append(coin)
+
+        # Use max of both counts — handles both desync directions
+        used = max(dsl_active_count, on_chain_count)
+
         strategy_slots[key] = {
             "name": cfg.get("name", key),
             "slots": max_slots,
-            "used": active_count,
-            "available": max(0, max_slots - active_count),
+            "used": used,
+            "available": max(0, max_slots - used),
+            "dslActive": dsl_active_count,
+            "onChain": on_chain_count,
+            "onChainCoins": sorted(on_chain_coins) if on_chain_coins else [],
         }
 except Exception:
-    pass  # Don't fail the whole script if slot counting errors
+    pass
 
 any_slots_available = any(s["available"] > 0 for s in strategy_slots.values()) if strategy_slots else True
 

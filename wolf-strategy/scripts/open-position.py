@@ -171,10 +171,13 @@ def main():
         open_result = mcporter_call(
             "create_position",
             strategyWalletAddress=wallet,
-            coin=coin,
-            direction=direction,
-            leverage=leverage,
-            margin=margin,
+            orders=[{
+                "coin": coin,
+                "direction": direction,
+                "leverage": int(leverage),
+                "marginAmount": margin,
+                "orderType": "MARKET",
+            }],
         )
     except RuntimeError as e:
         fail("position_open_failed", detail=str(e), strategyKey=strategy_key)
