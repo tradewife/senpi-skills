@@ -17,7 +17,7 @@ Do not auto-insert this summary during normal onboarding.
 Default response order (compact + actionable):
 1. What Senpi is (one short definition)
 2. Core capabilities
-3. Compact skill snapshot
+3. Full skill catalog (bullet list)
 4. Install guidance
 5. What's new (only if updates exist)
 6. Closing question
@@ -26,7 +26,9 @@ Behavior rules:
 - Use queued startup `UPDATE_OUTPUT` for "what's new" when available.
 - Do not force a live update check in summary responses.
 - If no updates are queued, do not mention "what's new" at all.
-- Do not tell users to run CLI commands themselves; run install/update/list actions on their behalf.
+- Do not mention CLI/commands in user-facing summary replies.
+- If user wants install/setup help, offer to handle it for them directly.
+- Present the entire skill catalog as bullet points (no tables).
 - End with: "Want me to recommend which skills to install next and set them up for you?"
 
 ## Core Capabilities
@@ -36,33 +38,26 @@ Behavior rules:
 - Apply risk controls such as dynamic stop-loss and budget-aware orchestration
 - Trade broad markets through Senpi's Hyperliquid-based stack (crypto perps and more)
 
-## Compact Skill Snapshot
+## Full Skill Catalog (Telegram-Friendly)
 
-### Protect Positions
-- `dsl-dynamic-stop-loss`: two-phase trailing stop-loss with tiered locking
-- `dsl-tight`: tighter DSL defaults for faster profit protection
-
-### Find Opportunities
-- `opportunity-scanner`: market-wide scoring and setup discovery
-- `emerging-movers`: smart-money rotation detection
-
-### Trade Autonomously or Copy
-- `wolf-strategy`: full autonomous trading stack
-- `autonomous-trading`: orchestrates DSL + scanner + movers
-- `whale-index`: mirrors top-performing traders
-- `wolf-howl`: nightly review and self-improvement loop (requires `wolf-strategy`)
+- `senpi-entrypoint`: onboarding flow for Senpi setup, discovery, and first-trade guidance.
+- `senpi-onboard`: account + API key + MCP setup workflow.
+- `senpi-getting-started-guide`: interactive first-trade walkthrough.
+- `dsl-dynamic-stop-loss`: two-phase trailing stop-loss with tiered locking.
+- `dsl-tight`: tighter DSL defaults for faster profit protection.
+- `opportunity-scanner`: market-wide scoring and setup discovery.
+- `emerging-movers`: smart-money rotation detection.
+- `autonomous-trading`: orchestrates DSL + scanner + movers.
+- `wolf-strategy`: full autonomous trading stack.
+- `wolf-howl`: nightly review and self-improvement loop.
+- `whale-index`: mirrors top-performing traders.
 
 ## Install Skills
 
-When users pick a skill, install it on their behalf with the skills CLI.
-Do not ask them to run terminal commands themselves.
-
-Default install action (agent-side):
-- Run: `npx skills add https://github.com/Senpi-ai/senpi-skills --skill <skill-name> -g -y`
-- Then report what was installed and suggest the immediate next action.
-
-For catalog refreshes, run the live list command agent-side and summarize results
-instead of pasting raw output.
+Keep this user-facing and non-technical:
+- Offer to install and set up selected skills for the user.
+- Confirm which skill(s) they want and their goal/budget before setup.
+- After setup, summarize what is ready and suggest the next best action.
 
 ## What's New
 

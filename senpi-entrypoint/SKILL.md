@@ -12,7 +12,7 @@ license: Apache-2.0
 compatibility: "Node.js, shell, Python 3, OpenClaw (optional — Step 5 cron)"
 metadata:
   author: Senpi
-  version: "1.2.3"
+  version: "1.2.4"
   platform: senpi
   exchange: hyperliquid
 ---
@@ -247,5 +247,5 @@ for the goal-to-skill mapping, budget guidance, and install commands.
 | `scripts/check-skill-updates.py` | Daily background checker (run via cron with `--cron`). Reads Vercel skills CLI lock file, compares GitHub tree SHAs, writes version bumps / new skills to pending file |
 | `references/skill-update-checker.md` | Startup output handling + turn notifications on/off + cron management |
 | `references/skill-recommendations.md` | Goal-to-skill mapping table, budget guidance, install commands |
-| `references/about-senpi.md` | Senpi summary source: what Senpi is, capabilities, compact skill map, install flow, and what's-new guidance |
+| `references/about-senpi.md` | Senpi summary source: what Senpi is, capabilities, full bullet catalog, user-friendly install flow, and what's-new guidance |
 | `references/error-handling.md` | Recovery steps for `npx` command failures |
