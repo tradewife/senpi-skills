@@ -352,6 +352,9 @@ alerts.sort(key=lambda a: (
 
 # ─── Slot availability per strategy (clearinghouse-backed) ───
 import glob as globmod
+
+APPROX_GRACE_MINUTES = 10  # approximate DSLs older than this don't count toward slots
+
 strategy_slots = {}
 try:
     all_strategies = load_all_strategies()
@@ -359,14 +362,25 @@ try:
         max_slots = cfg.get("slots", 2)
         wallet = cfg.get("wallet", "")
 
-        # Count DSL state files with active=True
+        # Count DSL state files with active=True, excluding stale approximate DSLs
         dsl_active_count = 0
+        scan_now = datetime.now(timezone.utc)
         for sf in globmod.glob(dsl_state_glob(key)):
             try:
                 with open(sf) as f:
                     s = json.load(f)
-                if s.get("active"):
-                    dsl_active_count += 1
+                if not s.get("active"):
+                    continue
+                # Skip stale approximate DSLs from slot count
+                if s.get("approximate") and s.get("createdAt"):
+                    try:
+                        created = datetime.fromisoformat(s["createdAt"].replace("Z", "+00:00"))
+                        age_min = (scan_now - created).total_seconds() / 60
+                        if age_min > APPROX_GRACE_MINUTES:
+                            continue
+                    except (ValueError, TypeError):
+                        pass
+                dsl_active_count += 1
             except (json.JSONDecodeError, IOError, KeyError, AttributeError):
                 continue
 
@@ -405,6 +419,12 @@ except Exception:
     pass
 
 any_slots_available = any(s["available"] > 0 for s in strategy_slots.values()) if strategy_slots else True
+
+# Pre-filter: if no slots available and no FIRST_JUMP signals (rotation candidates),
+# skip outputting alerts entirely — saves LLM reasoning time within the cron timeout.
+has_first_jump = any(a.get("isFirstJump") for a in alerts)
+if not any_slots_available and not has_first_jump:
+    alerts = []  # clear signals since agent can't act on them
 
 output = {
     "status": "ok",

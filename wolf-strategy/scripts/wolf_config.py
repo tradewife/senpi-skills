@@ -13,7 +13,8 @@ Usage:
     path = dsl_state_path("wolf-abc123", "HYPE")
 """
 
-import json, os, sys, glob, subprocess, time, tempfile, shlex
+import json, os, sys, glob, subprocess, time, tempfile, shlex, fcntl
+from contextlib import contextmanager
 
 WORKSPACE = os.environ.get("WOLF_WORKSPACE",
     os.environ.get("OPENCLAW_WORKSPACE", "/data/workspace"))
@@ -29,10 +30,27 @@ def _fail(msg):
 
 
 def _load_registry():
-    """Load the strategy registry, with auto-migration from legacy format."""
-    if os.path.exists(REGISTRY_FILE):
-        with open(REGISTRY_FILE) as f:
-            return json.load(f)
+    """Load the strategy registry, with auto-migration from legacy format.
+
+    Retries once on file-not-found to handle transient filesystem glitches
+    (e.g. NFS/overlay mount delays in container environments).
+    """
+    for attempt in range(2):
+        if os.path.exists(REGISTRY_FILE):
+            try:
+                with open(REGISTRY_FILE) as f:
+                    return json.load(f)
+            except (json.JSONDecodeError, IOError) as e:
+                if attempt == 0:
+                    time.sleep(1)
+                    continue
+                _fail(f"Registry file corrupt at {REGISTRY_FILE}: {e}")
+        elif attempt == 0:
+            # Retry once after 1s — handles transient filesystem unavailability
+            time.sleep(1)
+            continue
+        else:
+            break  # fall through to legacy check
 
     # Fallback: auto-migrate legacy single-strategy config
     if os.path.exists(LEGACY_CONFIG):
@@ -83,7 +101,7 @@ def _load_registry():
 
         return registry
 
-    _fail("No config found. Run wolf-setup.py first.")
+    _fail(f"No config found at {REGISTRY_FILE} (WORKSPACE={WORKSPACE}). Run wolf-setup.py first.")
 
 
 def _migrate_legacy_state_files(strategy_key):
@@ -266,6 +284,25 @@ def mcporter_call_safe(tool, retries=3, timeout=30, **kwargs):
         return None
 
 
+def send_notification(message):
+    """Send a Telegram notification directly via mcporter.
+
+    Reads the telegram chatId from the strategy registry's global config.
+    Silently fails — notifications should never crash the calling script.
+    """
+    try:
+        reg = _load_registry()
+        global_cfg = reg.get("global", {})
+        chat_id = global_cfg.get("telegramChatId", "")
+        if not chat_id:
+            return
+        target = f"telegram:{chat_id}"
+        mcporter_call_safe("send_telegram_notification", retries=2, timeout=10,
+                           target=target, message=message)
+    except Exception:
+        pass  # never crash the caller
+
+
 HEARTBEAT_FILE = os.path.join(WORKSPACE, "state", "cron-heartbeats.json")
 
 def heartbeat(cron_name):
@@ -290,6 +327,42 @@ def atomic_write(path, data):
     with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
     os.replace(tmp, path)
+
+
+@contextmanager
+def strategy_lock(strategy_key, timeout=60):
+    """Acquire an exclusive file lock per strategy key.
+
+    Serializes position opens so that concurrent calls (e.g. two FIRST_JUMPs
+    in the same scanner run) cannot race past the slot check.
+
+    Args:
+        strategy_key: Strategy key (e.g. "wolf-abc123").
+        timeout: Seconds to wait for lock before raising.
+
+    Yields once the lock is held; releases on exit.
+    """
+    lock_dir = os.path.join(WORKSPACE, "state", "locks")
+    os.makedirs(lock_dir, exist_ok=True)
+    lock_path = os.path.join(lock_dir, f"{strategy_key}.lock")
+    fd = open(lock_path, "w")
+    try:
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except (IOError, OSError):
+                if time.monotonic() >= deadline:
+                    fd.close()
+                    raise RuntimeError(f"Could not acquire lock for {strategy_key} within {timeout}s")
+                time.sleep(0.2)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            fd.close()
 
 
 # --- Risk-based leverage ---

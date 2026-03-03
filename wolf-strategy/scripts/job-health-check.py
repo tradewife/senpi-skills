@@ -167,6 +167,35 @@ def check_strategy(strategy_key, cfg):
                 asset_key = clean_key
             else:
                 # --- NO_DSL auto-create ---
+                # Skip if a DSL was recently deactivated for this asset
+                # (prevents cascading create/deactivate cycles from bugs #2/#5)
+                clean_coin_check = coin.replace("xyz:", "")
+                recently_deactivated = False
+                existing_path = dsl_state_path(strategy_key, clean_coin_check)
+                if os.path.exists(existing_path):
+                    try:
+                        with open(existing_path) as _ef:
+                            existing_state = json.load(_ef)
+                        if not existing_state.get("active") and existing_state.get("deactivatedAt"):
+                            deact_time = datetime.fromisoformat(
+                                existing_state["deactivatedAt"].replace("Z", "+00:00"))
+                            deact_age_min = (now - deact_time).total_seconds() / 60
+                            if deact_age_min < 15:
+                                recently_deactivated = True
+                                issues.append({
+                                    "level": "INFO",
+                                    "type": "NO_DSL",
+                                    "strategyKey": strategy_key,
+                                    "asset": coin,
+                                    "action": "skipped_recently_deactivated",
+                                    "message": f"[{strategy_key}] {coin} has no active DSL but was deactivated {round(deact_age_min)}min ago — skipping auto-create"
+                                })
+                    except (json.JSONDecodeError, IOError, ValueError, TypeError):
+                        pass
+
+                if recently_deactivated:
+                    continue
+
                 entry_px = pos.get("entryPx")
                 size = pos.get("size")
                 leverage = pos.get("leverage")
@@ -262,14 +291,49 @@ def check_strategy(strategy_key, cfg):
             continue
 
         if not dsl["active"] and not dsl["pendingClose"]:
-            issues.append({
-                "level": "CRITICAL",
-                "type": "DSL_INACTIVE",
-                "strategyKey": strategy_key,
-                "asset": coin,
-                "action": "alert_only",
-                "message": f"[{strategy_key}] {coin} has DSL state file but active=false -- unprotected position"
-            })
+            entry_px = pos.get("entryPx")
+            size = pos.get("size")
+            leverage = pos.get("leverage", dsl.get("leverage"))
+            if entry_px and size and leverage:
+                try:
+                    clean_coin = coin.replace("xyz:", "")
+                    new_state = dsl_state_template(
+                        asset=clean_coin, direction=pos["direction"],
+                        entry_price=float(entry_px), size=float(size),
+                        leverage=float(leverage), strategy_key=strategy_key,
+                        tiers=_get_strategy_tiers(cfg),
+                        created_by="healthcheck_inactive_replace",
+                    )
+                    new_state["wallet"] = wallet
+                    new_state["dex"] = _detect_dex(coin)
+                    path = dsl_state_path(strategy_key, clean_coin)
+                    atomic_write(path, new_state)
+                    issues.append({
+                        "level": "CRITICAL",
+                        "type": "DSL_INACTIVE",
+                        "strategyKey": strategy_key,
+                        "asset": coin,
+                        "action": "auto_replaced",
+                        "message": f"[{strategy_key}] {coin} DSL was inactive -- auto-replaced with fresh DSL at {path}"
+                    })
+                except Exception as e:
+                    issues.append({
+                        "level": "CRITICAL",
+                        "type": "DSL_INACTIVE",
+                        "strategyKey": strategy_key,
+                        "asset": coin,
+                        "action": "alert_only",
+                        "message": f"[{strategy_key}] {coin} has DSL state file but active=false -- auto-replace failed: {e}"
+                    })
+            else:
+                issues.append({
+                    "level": "CRITICAL",
+                    "type": "DSL_INACTIVE",
+                    "strategyKey": strategy_key,
+                    "asset": coin,
+                    "action": "alert_only",
+                    "message": f"[{strategy_key}] {coin} has DSL state file but active=false -- incomplete position data, cannot auto-replace"
+                })
         elif dsl["direction"] != pos["direction"]:
             # --- DIRECTION_MISMATCH auto-replace ---
             try:
@@ -429,7 +493,7 @@ def check_strategy(strategy_key, cfg):
                         try:
                             created = datetime.fromisoformat(raw["createdAt"].replace("Z", "+00:00"))
                             age_min = (now - created).total_seconds() / 60
-                            if age_min < 5:
+                            if age_min < 10:
                                 issues.append({
                                     "level": "INFO",
                                     "type": "ORPHAN_DSL",

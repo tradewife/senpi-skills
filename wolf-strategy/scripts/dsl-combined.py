@@ -25,7 +25,8 @@ from datetime import datetime, timezone
 # Add scripts dir to path for wolf_config import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from wolf_config import (load_all_strategies, dsl_state_glob, atomic_write,
-                         validate_dsl_state, mcporter_call, mcporter_call_safe, heartbeat)
+                         validate_dsl_state, mcporter_call, mcporter_call_safe,
+                         heartbeat, send_notification)
 
 heartbeat("dsl_combined")
 
@@ -270,6 +271,12 @@ def process_position(state_file, state, price, strategy_cfg):
                 state["closeReason"] = close_reason
                 if "position_already_closed" in str(close_result):
                     state["closeReason"] = "position_already_closed"
+                # Send notification directly — don't rely on LLM agent
+                phase1_label = " (phase1 timeout cut)" if phase1_autocut else ""
+                notif_msg = (f"🔴 CLOSED {state['asset']} {direction} "
+                             f"[{strategy_cfg.get('_key', 'unknown')}]: "
+                             f"{close_reason}{phase1_label} | uPnL: ${upnl:.2f}")
+                send_notification(notif_msg)
             else:
                 state["pendingClose"] = True
 
