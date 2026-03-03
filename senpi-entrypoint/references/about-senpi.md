@@ -29,6 +29,9 @@ Behavior rules:
 - Do not mention CLI/commands in user-facing summary replies.
 - If user wants install/setup help, offer to handle it for them directly.
 - Present the entire skill catalog as bullet points (no tables).
+- For "What is Senpi?", include a short onboarding-status note (`SENPI_AUTH_TOKEN` set/unset and next step).
+- For goal-based picks, also consult
+  [references/skill-recommendations.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/skill-recommendations.md).
 - End with: "Want me to recommend which skills to install next and set them up for you?"
 
 ## Core Capabilities
@@ -58,6 +61,9 @@ Keep this user-facing and non-technical:
 - Offer to install and set up selected skills for the user.
 - Confirm which skill(s) they want and their goal/budget before setup.
 - After setup, summarize what is ready and suggest the next best action.
+
+For tailored recommendations by objective and budget, see
+[references/skill-recommendations.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/skill-recommendations.md).
 
 ## What's New
 
