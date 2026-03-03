@@ -288,9 +288,11 @@ Each position gets `state/{strategyKey}/dsl-{ASSET}.json`. The combined runner i
 ## Rotation Rules
 
 When slots are full in a strategy and a new FIRST_JUMP or IMMEDIATE fires:
-- **Rotate if:** new signal is FIRST_JUMP or has 3+ reasons + positive velocity AND weakest position in that strategy is flat/negative ROE with SM conv 0-1
+- **Cross-strategy first:** If one strategy is full but another has slots, route to the available strategy instead of rotating
+- **Rotation cooldown (mandatory):** Only rotate a position listed in `rotationEligibleCoins` from the scanner output. Positions younger than `rotationCooldownMinutes` (default 45 min) are ineligible — they have flat/negative ROE by design. Do NOT override this with judgment.
+- **Rotate if:** new signal is FIRST_JUMP or has 3+ reasons + positive velocity AND weakest **eligible** position (from `rotationEligibleCoins`) is flat/negative ROE with SM conv 0-1
 - **Hold if:** current position in Tier 2+ or trending up with SM conv 3+
-- **Cross-strategy:** If one strategy is full but another has slots, route to the available strategy instead of rotating
+- **If `hasRotationCandidate: false`:** all positions are in cooldown. Do not rotate. Output HEARTBEAT_OK.
 
 ---
 

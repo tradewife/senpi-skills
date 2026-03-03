@@ -80,13 +80,14 @@ Replace these placeholders in all templates:
 
 ```
 WOLF Emerging Movers: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/emerging-movers.py`, parse JSON.
-SLOT GUARD (MANDATORY): Check `anySlotsAvailable` — if false, output HEARTBEAT_OK immediately. Do NOT open any position when all strategies show 0 available slots. Check `strategySlots` per strategy before routing.
+SLOT GUARD (MANDATORY): Check `anySlotsAvailable` — if false AND no FIRST_JUMP signals, output HEARTBEAT_OK immediately. Do NOT open any position when all strategies show 0 available slots. Check `strategySlots` per strategy before routing.
 On FIRST_JUMP/CONTRIB_EXPLOSION/IMMEDIATE_MOVER/NEW_ENTRY_DEEP/DEEP_CLIMBER signals:
 use `strategySlots` to route to a strategy with available > 0 (skip strategies at capacity).
 Enter via: `python3 {SCRIPTS}/open-position.py --strategy {strategyKey} --asset {qualifiedAsset} --direction {DIR} --conviction {CONVICTION}`
 The `qualifiedAsset` field includes the `xyz:` prefix for XYZ equities (e.g., `xyz:SILVER`). Use it directly — do NOT strip the prefix.
 Conviction comes from scanner output (`conviction` field per alert). This opens the position AND creates the DSL state file atomically. Do NOT manually call create_position or hand-write DSL JSON.
 No leverage floor — all assets are tradeable. Leverage auto-calculated from strategy tradingRisk + asset maxLeverage + signal conviction. Apply WOLF entry rules from SKILL.md (rank #25+ entry, no top-10 entries, rotation logic).
+ROTATION COOLDOWN (MANDATORY): When slots are full and rotation is needed, only rotate a coin listed in `strategySlots[strategy].rotationEligibleCoins`. Do NOT rotate coins absent from that list — they are under cooldown. If `hasRotationCandidate` is false for all strategies, output HEARTBEAT_OK — no rotation is safe this cycle.
 For each successful entry, send the `notification` field from the open-position.py output to Telegram ({TELEGRAM}). Else HEARTBEAT_OK.
 ```
 

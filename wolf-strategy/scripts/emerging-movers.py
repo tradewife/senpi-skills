@@ -354,6 +354,7 @@ alerts.sort(key=lambda a: (
 import glob as globmod
 
 APPROX_GRACE_MINUTES = 10  # approximate DSLs older than this don't count toward slots
+ROTATION_COOLDOWN_MINUTES = 45  # positions younger than this can't be rotated
 
 strategy_slots = {}
 try:
@@ -364,6 +365,8 @@ try:
 
         # Count DSL state files with active=True, excluding stale approximate DSLs
         dsl_active_count = 0
+        slot_ages = []
+        rotation_eligible_coins = []
         scan_now = datetime.now(timezone.utc)
         for sf in globmod.glob(dsl_state_glob(key)):
             try:
@@ -381,6 +384,19 @@ try:
                     except (ValueError, TypeError):
                         pass
                 dsl_active_count += 1
+
+                # Track per-slot age for rotation eligibility
+                coin_name = s.get("asset", os.path.basename(sf).replace("dsl-", "").replace(".json", ""))
+                slot_age_min = None
+                if s.get("createdAt"):
+                    try:
+                        created = datetime.fromisoformat(s["createdAt"].replace("Z", "+00:00"))
+                        slot_age_min = round((scan_now - created).total_seconds() / 60, 1)
+                    except (ValueError, TypeError):
+                        pass
+                slot_ages.append({"coin": coin_name, "ageMinutes": slot_age_min})
+                if slot_age_min is None or slot_age_min >= ROTATION_COOLDOWN_MINUTES:
+                    rotation_eligible_coins.append(coin_name)
             except (json.JSONDecodeError, IOError, KeyError, AttributeError):
                 continue
 
@@ -414,6 +430,10 @@ try:
             "dslActive": dsl_active_count,
             "onChain": on_chain_count,
             "onChainCoins": sorted(on_chain_coins) if on_chain_coins else [],
+            "slotAges": slot_ages,
+            "rotationEligibleCoins": sorted(rotation_eligible_coins),
+            "rotationCooldownMinutes": ROTATION_COOLDOWN_MINUTES,
+            "hasRotationCandidate": len(rotation_eligible_coins) > 0,
         }
 except Exception:
     pass
@@ -423,8 +443,15 @@ any_slots_available = any(s["available"] > 0 for s in strategy_slots.values()) i
 # Pre-filter: if no slots available and no FIRST_JUMP signals (rotation candidates),
 # skip outputting alerts entirely — saves LLM reasoning time within the cron timeout.
 has_first_jump = any(a.get("isFirstJump") for a in alerts)
+any_rotation_candidate = any(
+    s.get("hasRotationCandidate", True)
+    for s in strategy_slots.values()
+) if strategy_slots else True
+
 if not any_slots_available and not has_first_jump:
     alerts = []  # clear signals since agent can't act on them
+elif not any_slots_available and has_first_jump and not any_rotation_candidate:
+    pass  # keep alerts visible but agent will see hasRotationCandidate=false and skip
 
 output = {
     "status": "ok",

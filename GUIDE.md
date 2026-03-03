@@ -836,7 +836,7 @@ When a skill has a setup script that generates cron configurations, follow these
 **Parameterize model IDs via CLI args:**
 
 ```python
-parser.add_argument("--mid-model", default="anthropic/claude-sonnet-4-20250514",
+parser.add_argument("--mid-model", default="anthropic/claude-sonnet-4-5",
                     help="Model ID for Mid-tier isolated crons")
 parser.add_argument("--budget-model", default="anthropic/claude-haiku-4-5",
                     help="Model ID for Budget-tier isolated crons")
