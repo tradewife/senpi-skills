@@ -20,6 +20,28 @@ All 5 crons can also run on a single model if you prefer simplicity over cost sa
 
 ---
 
+## Notification Policy
+
+**Only notify when a trade action was taken.** Isolated sessions have no memory, so informational warnings fire every cycle and create noise. Follow these rules:
+
+**NOTIFY (Telegram):**
+- Position opened (Emerging Movers entry)
+- Position closed (DSL breach, phase1 autocut, stagnation, SM FLIP_NOW, Watchdog emergency close)
+- Position auto-fixed (Health Check: `auto_created`, `auto_replaced`)
+- Critical config error requiring manual fix (Health Check: `NO_WALLET`, `DSL_INACTIVE`)
+
+**NEVER NOTIFY:**
+- Buffer/margin warnings with no close action taken
+- Liquidation distance warnings with no close action taken
+- ROE warnings, rotation candidates, or other informational output
+- Pending retries (`pending_close`) — auto-retries next cycle
+- Internal bookkeeping (freed slots, state reconciliation)
+- Transient errors (fetch failures, stale data)
+
+**Fallback rule:** If you did not open, close, or fix a position, output `HEARTBEAT_OK` — no Telegram message.
+
+---
+
 All crons use the **isolated session** (agentTurn) format:
 
 ```json
@@ -67,8 +89,8 @@ Alert Telegram ({TELEGRAM}) for each entry. Else HEARTBEAT_OK.
 
 ```
 WOLF DSL: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/dsl-combined.py`, parse JSON.
-For each entry in `results`: if `status=="closed"` → alert Telegram ({TELEGRAM}) with asset, direction, strategyKey, close_reason, upnl. If `phase1_autocut: true` → note timeout cut. If `status=="pending_close"` → alert user (retry next run).
-If `any_closed: true` → note freed slot(s) for next Emerging Movers run. Else HEARTBEAT_OK.
+Send each message in `notifications` to Telegram ({TELEGRAM}).
+If `notifications` is empty → HEARTBEAT_OK.
 ```
 
 ---
@@ -88,8 +110,9 @@ If `hasFlipSignal == false` or no FLIP_NOW alerts → HEARTBEAT_OK.
 
 ```
 WOLF Watchdog: Run `PYTHONUNBUFFERED=1 timeout 45 python3 {SCRIPTS}/wolf-monitor.py`, parse JSON.
-Check each strategy: crypto_liq_buffer_pct<50% → WARNING (alert Telegram only); <30% → CRITICAL (close the position with lowest ROE% in that strategy, then alert Telegram ({TELEGRAM})). XYZ liq_distance_pct<15% → alert Telegram.
-If no alerts → HEARTBEAT_OK.
+For each item in `action_required`: close the specified position (coin + strategyKey), then alert Telegram ({TELEGRAM}) with what was closed and why.
+Ignore all other alerts in the output — they are informational only.
+If `action_required` is empty → HEARTBEAT_OK.
 ```
 
 ---
@@ -98,16 +121,8 @@ If no alerts → HEARTBEAT_OK.
 
 ```
 WOLF Health Check: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/job-health-check.py`, parse JSON.
-The script auto-fixes most issues (check the `action` field per issue):
-- auto_created → DSL was missing, script created it. Alert Telegram ({TELEGRAM}).
-- auto_deactivated → Orphan DSL deactivated (position closed externally). No alert needed.
-- auto_replaced → Direction mismatch fixed with fresh DSL. Alert Telegram ({TELEGRAM}).
-- updated_state → Size/entry/leverage reconciled to match on-chain. No alert needed.
-- skipped_fetch_error → Orphan check skipped due to API error. No alert needed (transient).
-- alert_only → Script could not auto-fix. Handle manually:
-  - NO_WALLET → CRITICAL, needs manual config. Alert Telegram ({TELEGRAM}).
-  - DSL_INACTIVE → CRITICAL, set `active: true` in the DSL state file. Alert Telegram ({TELEGRAM}).
-If no issues → HEARTBEAT_OK.
+Send each message in `notifications` to Telegram ({TELEGRAM}).
+If `notifications` is empty → HEARTBEAT_OK.
 ```
 
 ---

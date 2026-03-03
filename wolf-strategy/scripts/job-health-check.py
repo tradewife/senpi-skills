@@ -556,6 +556,19 @@ def main():
     heartbeat_issues = check_cron_heartbeats()
     all_issues.extend(heartbeat_issues)
 
+    # --- Build notifications for LLM mandate ---
+    NOTIFY_ACTIONS = {"auto_created", "auto_replaced"}
+    NOTIFY_TYPES = {"NO_WALLET", "DSL_INACTIVE"}
+
+    notifications = []
+    for issue in all_issues:
+        action = issue.get("action", "")
+        itype = issue.get("type", "")
+        if action in NOTIFY_ACTIONS:
+            notifications.append(f"🔧 {action.upper()} [{issue.get('strategyKey','')}] {issue.get('asset','')}: {issue.get('message','')}")
+        elif action == "alert_only" and itype in NOTIFY_TYPES:
+            notifications.append(f"🚨 {itype} [{issue.get('strategyKey','')}]: {issue.get('message','')}")
+
     result = {
         "status": "ok" if not any(i["level"] == "CRITICAL" for i in all_issues) else "critical",
         "time": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -564,6 +577,7 @@ def main():
         "issue_count": len(all_issues),
         "critical_count": sum(1 for i in all_issues if i["level"] == "CRITICAL"),
         "cronHeartbeats": len(heartbeat_issues),
+        "notifications": notifications,
     }
 
     print(json.dumps(result, indent=2))

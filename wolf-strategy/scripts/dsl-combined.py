@@ -461,6 +461,14 @@ for sf, cfg in all_state_entries:
 any_closed = len(closed_positions) > 0
 any_tier_change = any(r.get("tier_changed") for r in results)
 
+notifications = []
+for cp in closed_positions:
+    reason = cp.get("close_reason", "unknown")
+    phase1 = " (phase1 timeout cut)" if cp.get("phase1_autocut") else ""
+    notifications.append(
+        f"🔴 CLOSED {cp['asset']} {cp['direction']} [{cp['strategyKey']}]: {reason}{phase1} | uPnL: ${cp.get('upnl', 0):.2f}"
+    )
+
 print(json.dumps({
     "status": "ok",
     "time": now,
@@ -472,5 +480,6 @@ print(json.dumps({
     "errors": errors if errors else None,
     "any_closed": any_closed,
     "any_tier_change": any_tier_change,
+    "notifications": notifications,
     "state_files_found": len(all_state_entries)
 }))
