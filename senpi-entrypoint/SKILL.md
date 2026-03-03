@@ -12,7 +12,7 @@ license: Apache-2.0
 compatibility: "Node.js, shell, Python 3, OpenClaw (optional — Step 5 cron)"
 metadata:
   author: Senpi
-  version: "1.2.0"
+  version: "1.2.2"
   platform: senpi
   exchange: hyperliquid
 ---
@@ -223,6 +223,15 @@ If the user asks to turn notifications off or back on, follow the procedure in
 
 ## Responding to Questions
 
+### "What is Senpi?" / "Summarize Senpi" / "Summarize skills and capabilities" / "How do I install skills?" / "What's new?"
+
+This is **explicit-ask only** — do not auto-insert this summary into normal
+onboarding steps.
+
+When asked, load and follow
+[references/about-senpi.md](https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/main/senpi-entrypoint/references/about-senpi.md)
+(`Summary Response Contract` section) for order, depth, and command behavior.
+
 ### "What skills should I install?" / "What should I use for [goal]?"
 
 Consult
@@ -238,5 +247,5 @@ for the goal-to-skill mapping, budget guidance, and install commands.
 | `scripts/check-skill-updates.py` | Daily background checker (run via cron with `--cron`). Reads Vercel skills CLI lock file, compares GitHub tree SHAs, writes version bumps / new skills to pending file |
 | `references/skill-update-checker.md` | Startup output handling + turn notifications on/off + cron management |
 | `references/skill-recommendations.md` | Goal-to-skill mapping table, budget guidance, install commands |
-| `references/about-senpi.md` | Senpi platform overview (what it is, what agents can do, core loop) |
+| `references/about-senpi.md` | Senpi summary source: what Senpi is, capabilities, compact skill map, install flow, and what's-new guidance |
 | `references/error-handling.md` | Recovery steps for `npx` command failures |
