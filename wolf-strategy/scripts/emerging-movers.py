@@ -336,6 +336,9 @@ for alert in alerts:
         pass  # NEVER downgrade CONTRIB_EXPLOSION
     elif is_imm and (erratic or low_vel):
         alert["isImmediate"] = False
+        alert["signalType"] = "DEEP_CLIMBER"
+        alert["signalPriority"] = 5
+        alert["conviction"] = SIGNAL_CONVICTION["DEEP_CLIMBER"]
         if erratic:
             alert["reasons"].append("⚠️ DOWNGRADED: erratic rank history (zigzag in pre-jump history)")
         if low_vel:
