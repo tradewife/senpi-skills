@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from wolf_config import (load_strategy, dsl_state_path, dsl_state_glob,
                          dsl_state_template, atomic_write, mcporter_call,
                          mcporter_call_safe, calculate_leverage, strategy_lock,
-                         send_notification, WORKSPACE, ROTATION_COOLDOWN_MINUTES)
+                         WORKSPACE, ROTATION_COOLDOWN_MINUTES)
 
 
 def fail(msg, **extra):
@@ -203,6 +203,7 @@ def main():
     try:
         # 2.5 Handle rotation close (--close-asset) inside the lock
         just_closed_coin = None
+        rotation_notif = None
         if args.close_asset:
             close_clean = args.close_asset.replace("xyz:", "")
 
@@ -256,7 +257,7 @@ def main():
                     pass
 
             just_closed_coin = close_coin
-            send_notification(f"🔄 ROTATION [{strategy_key}]: Closing {close_clean} for {clean_asset}")
+            rotation_notif = f"🔄 ROTATION [{strategy_key}]: Closing {close_clean} for {clean_asset}"
 
         # 3. Check slot availability (cross-check DSL files with on-chain positions)
         max_slots = cfg.get("slots", 2)
@@ -417,6 +418,8 @@ def main():
     if leverage_capped:
         notif_parts.append(f"(capped from {original_leverage}x, max {max_lev}x)")
     result["notifications"] = [" | ".join(notif_parts)]
+    if rotation_notif:
+        result["notifications"].insert(0, rotation_notif)
 
     print(json.dumps(result, indent=2))
 
