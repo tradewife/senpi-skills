@@ -81,13 +81,26 @@ Replace these placeholders in all templates:
 ```
 WOLF Emerging Movers: Run `PYTHONUNBUFFERED=1 python3 {SCRIPTS}/emerging-movers.py`, parse JSON.
 SLOT GUARD (MANDATORY): Check `anySlotsAvailable` — if false AND no FIRST_JUMP signals, output HEARTBEAT_OK immediately. Do NOT open any position when all strategies show 0 available slots. Check `strategySlots` per strategy before routing.
-On FIRST_JUMP/CONTRIB_EXPLOSION/IMMEDIATE_MOVER/NEW_ENTRY_DEEP/DEEP_CLIMBER signals:
-use `strategySlots` to route to a strategy with available > 0 (skip strategies at capacity).
+SIGNAL SELECTION (MANDATORY — strict priority order):
+Act ONLY on the `topPicks` array — it contains pre-selected signals sorted by priority. Process topPicks[0] first, then topPicks[1], etc. Do NOT browse `alerts` to pick signals yourself.
+Each signal has a `signalType` field (FIRST_JUMP, CONTRIB_EXPLOSION, IMMEDIATE_MOVER, NEW_ENTRY_DEEP, DEEP_CLIMBER) and `signalPriority` (1=highest). NEVER skip a higher-priority signal to act on a lower-priority one.
+If `hasFirstJump` is true, FIRST_JUMP signals MUST be acted on before any other type.
+Use `strategySlots` to route each signal to a strategy with available > 0 (skip strategies at capacity).
 Enter via: `python3 {SCRIPTS}/open-position.py --strategy {strategyKey} --asset {qualifiedAsset} --signal-index {signalIndex}`
 The `qualifiedAsset` field includes the `xyz:` prefix for XYZ equities (e.g., `xyz:SILVER`). Use it directly — do NOT strip the prefix.
 The `signalIndex` field is in each alert — it tells open-position.py which signal to use for direction and conviction. Do NOT pass --direction or --conviction manually. This opens the position AND creates the DSL state file atomically. Do NOT manually call create_position or hand-write DSL JSON.
-No leverage floor — all assets are tradeable. Leverage auto-calculated from strategy tradingRisk + asset maxLeverage + signal conviction. Apply WOLF entry rules from SKILL.md (rank #25+ entry, no top-10 entries, rotation logic).
-ROTATION COOLDOWN (MANDATORY): When slots are full and rotation is needed, only rotate a coin listed in `strategySlots[strategy].rotationEligibleCoins`. Do NOT rotate coins absent from that list — they are under cooldown. If `hasRotationCandidate` is false for all strategies, output HEARTBEAT_OK — no rotation is safe this cycle.
+No leverage floor — all assets are tradeable. Leverage auto-calculated from strategy tradingRisk + asset maxLeverage + signal conviction.
+ENTRY CHECKS (do NOT enter if any fail):
+- currentRank must be >= 25 at time of first signal (the scanner already filters this — trust `topPicks`)
+- NEVER enter assets currently at rank #1-10 — that's the top, not the entry
+- >= 10 SM traders for crypto (ignore trader count for XYZ equities)
+- Negative velocity + no jump = skip
+ANTI-PATTERNS — do NOT override these with judgment:
+- 4+ reasons at rank #5 = SKIP (asset already peaked, you'd be buying the top)
+- 2 reasons at rank #25 with big jump = ENTER (the move is just starting)
+- NEVER wait for a signal to "clean up" — by the time history is smooth and velocity high, the move is priced in
+- LATE ENTRY: If an asset has been in top 10 for 2+ scans, it's too late — skip it. Enter on the FIRST signal or not at all.
+ROTATION COOLDOWN (MANDATORY): When slots are full and rotation is needed, only rotate a coin listed in `strategySlots[strategy].rotationEligible pCoins`. Do NOT rotate coins absent from that list — they are under cooldown. If `hasRotationCandidate` is false for all strategies, output HEARTBEAT_OK — no rotation is safe this cycle.
 SAME-RUN ANTI-ROTATION: NEVER rotate a position you opened earlier in THIS same cron run. After opening position(s), remaining signals with no available slots must be SKIPPED. Positions need 45 minutes of price action before rotation eligibility.
 For each successful entry, send each message in the `notifications` array from the open-position.py output to Telegram ({TELEGRAM}). Else HEARTBEAT_OK.
 ```

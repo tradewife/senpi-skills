@@ -243,6 +243,18 @@ if len(prev_scans) >= MIN_SCANS_FOR_TREND:
             else:
                 alert_conviction = 0.5
 
+            # Signal type label + numeric priority (1=highest)
+            if is_first_jump:
+                signal_type, signal_priority = "FIRST_JUMP", 1
+            elif is_contrib_explosion:
+                signal_type, signal_priority = "CONTRIB_EXPLOSION", 2
+            elif is_immediate:
+                signal_type, signal_priority = "IMMEDIATE_MOVER", 3
+            elif is_deep_climber and any("NEW_ENTRY_DEEP" in r for r in alert_reasons):
+                signal_type, signal_priority = "NEW_ENTRY_DEEP", 4
+            else:
+                signal_type, signal_priority = "DEEP_CLIMBER", 5
+
             alerts.append({
                 "token": token,
                 "dex": dex if dex else None,
@@ -256,6 +268,8 @@ if len(prev_scans) >= MIN_SCANS_FOR_TREND:
                 "priceChg4h": market["price_chg_4h"],
                 "maxLeverage": alert_max_lev,
                 "conviction": alert_conviction,
+                "signalType": signal_type,
+                "signalPriority": signal_priority,
                 "reasons": alert_reasons,
                 "reasonCount": len(alert_reasons),
                 "rankHistory": rank_history,
@@ -340,15 +354,12 @@ atomic_write(HISTORY_FILE, history)
 OUTPUT_FILE = os.path.join(os.path.dirname(HISTORY_FILE), "emerging-movers-output.json")
 
 # ─── Output ───
-# Sort: first_jump > immediate > deep climber > velocity > reason count
+# Sort: priority number (1=highest) > velocity > reason count
 alerts.sort(key=lambda a: (
-    a.get("isFirstJump", False),
-    a.get("isImmediate", False),
-    a.get("isContribExplosion", False),
-    a.get("isDeepClimber", False),
-    abs(a.get("contribVelocity", 0)),
-    len(a["reasons"])
-), reverse=True)
+    a.get("signalPriority", 99),
+    -abs(a.get("contribVelocity", 0)),
+    -len(a["reasons"])
+))
 
 for idx, alert in enumerate(alerts):
     alert["signalIndex"] = idx
@@ -455,6 +466,12 @@ if not any_slots_available and not has_first_jump:
 elif not any_slots_available and has_first_jump and not any_rotation_candidate:
     pass  # keep alerts visible but agent will see hasRotationCandidate=false and skip
 
+# Top picks: pre-selected priority-ordered signals for the LLM to act on
+total_available_slots = sum(s.get("available", 0) for s in strategy_slots.values())
+first_jump_count = len([a for a in alerts if a.get("isFirstJump")])
+pick_count = max(total_available_slots, first_jump_count)
+top_picks = alerts[:pick_count] if pick_count > 0 else []
+
 output = {
     "status": "ok",
     "time": now,
@@ -462,6 +479,8 @@ output = {
     "scansInHistory": len(history["scans"]),
     "strategySlots": strategy_slots,
     "anySlotsAvailable": any_slots_available,
+    "totalAvailableSlots": total_available_slots,
+    "topPicks": top_picks,
     "alerts": alerts,
     "firstJumps": [a for a in alerts if a.get("isFirstJump")],
     "immediateMovers": [a for a in alerts if a.get("isImmediate")],
