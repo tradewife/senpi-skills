@@ -33,9 +33,9 @@ Trailing stop for Hyperliquid perps (main + xyz). Cron runs `dsl-v5.py` every 3�
 
 ## Architecture
 
-- **Scheduler:** OpenClaw cron (one per strategy, every 3–5 min). Env: `DSL_STATE_DIR`, `DSL_STRATEGY_ID`. No per-position cron — the script discovers positions from MCP clearinghouse and state files.
-- **Cron runner:** `dsl-v5.py` — checks strategy active (MCP `strategy_get`); reconciles state files with clearinghouse (archives orphans); for each active position: fetch price, update high water and tiers, sync SL to Hyperliquid via `edit_position`, detect breach, on breach call `close_position` and archive state. Prints one JSON line per position (ndjson).
-- **Lifecycle:** `dsl-cli.py` creates/updates strategy config and position state files; when adding DSL for a strategy with no cron, outputs `cron_needed`, `cron_job_id`, `cron_env`, `cron_schedule`. Agent creates or removes the OpenClaw cron using that ID.
+- **Scheduler:** OpenClaw cron (one per strategy, every 3–5 min). No per-position cron — the script discovers positions from MCP clearinghouse and state files.
+- **Cron runner:** `dsl-v5.py` — accepts **`--strategy-id <uuid>`** and **`--state-dir <path>`** (CLI args take precedence; env vars `DSL_STRATEGY_ID`, `DSL_STATE_DIR` are fallbacks). Prefer CLI args to avoid agent mistyping UUID in env. Checks strategy active (MCP `strategy_get`); reconciles state files with clearinghouse (archives orphans); for each active position: fetch price, update high water and tiers, sync SL to Hyperliquid via `edit_position`, detect breach, on breach call `close_position` and archive state. Prints one JSON line per position (ndjson).
+- **Lifecycle:** `dsl-cli.py` creates/updates strategy config and position state files only (it does not place the SL order). The cron runner syncs the floor to Hyperliquid via `edit_position` and sets `slOrderId` in state. When adding DSL for a strategy with no cron, CLI outputs `cron_needed`, `cron_job_id`, `cron_env`, `cron_schedule`. Agent creates or removes the OpenClaw cron using that ID.
 - **Cleanup:** On strategy inactive or no positions left, agent runs `dsl-cleanup.py` to remove the strategy directory. SL sync and close use Senpi (mcporter); scheduling is OpenClaw only.
 
 ```

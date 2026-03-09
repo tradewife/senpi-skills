@@ -114,11 +114,13 @@ Complete JSON schema for DSL v4/v5 state files. One state file per position. v5 
 
 ## v5 Hyperliquid SL Fields (optional)
 
+**Who sets these:** The **cron runner** (`dsl-v5.py`) syncs the floor to Hyperliquid via Senpi `edit_position` and populates/updates these fields. The **CLI only creates the state file** — it does not place the SL order. If a position was paused right after creation, the cron skips it until it is resumed; the next cron run (~within 3 min after resume) will pick it up, sync the floor to Hyperliquid, and set `slOrderId`.
+
 When the script syncs the dynamic stop loss to Hyperliquid via Senpi `edit_position`, it stores and updates these fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `slOrderId` | number \| null | Hyperliquid order ID of the current SL for this position. Set after a successful `edit_position` (or resolved via `strategy_get_open_orders`). |
+| `slOrderId` | number \| null | Hyperliquid order ID of the current SL for this position. Set by the cron runner after a successful `edit_position` (or resolved via `strategy_get_open_orders`). |
 | `lastSyncedFloorPrice` | number \| null | The effective floor price at which the current SL was last placed on Hyperliquid. Used to detect when the floor has changed and a new SL must be set. |
 | `slOrderIdUpdatedAt` | string \| null | ISO 8601 timestamp when the SL was last synced (for debugging/audit). |
 | `lastSlSyncError` | string \| null | Set by script when `edit_position` or SL order resolution fails; next sync will retry. |

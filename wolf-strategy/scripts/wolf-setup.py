@@ -334,7 +334,7 @@ cron_templates = {
         "payload": {
             "kind": "agentTurn",
             "model": mid_model,
-            "message": f"DSL [{strategy_name}] cron: Run `PYTHONUNBUFFERED=1 python3 {dsl_v5_run}` with env DSL_STATE_DIR={DSL_STATE_DIR}, DSL_STRATEGY_ID={strategy_id}. Parse ndjson (one JSON line per position or strategy event).\nFor each line: closed=true → send Telegram ({tg}) with asset, direction, close reason, PnL; strategy_inactive=true → remove this cron (job ID: {{DSL_CRON_JOB_ID}}), run dsl-cleanup.py; pending_close=true → send Telegram \"⚠️ DSL close pending retry for {{asset}} [{strategy_key}]\"; sl_initial_sync=true → silent.\nNo actionable events → HEARTBEAT_OK."
+            "message": f"DSL [{strategy_name}] cron: Run `PYTHONUNBUFFERED=1 python3 {dsl_v5_run} --strategy-id {strategy_id} --state-dir {DSL_STATE_DIR}`. Parse ndjson (one JSON line per position or strategy event).\nFor each line: closed=true → send Telegram ({tg}) with asset, direction, close reason, PnL; strategy_inactive=true → remove this cron (job ID: {{DSL_CRON_JOB_ID}}), run dsl-cleanup.py; pending_close=true → send Telegram \"⚠️ DSL close pending retry for {{asset}} [{strategy_key}]\"; sl_initial_sync=true → silent.\nNo actionable events → HEARTBEAT_OK."
         },
         "cron_env": {"DSL_STATE_DIR": DSL_STATE_DIR, "DSL_STRATEGY_ID": strategy_id},
         "dsl_cron_job_id": dsl_cron_job_id,

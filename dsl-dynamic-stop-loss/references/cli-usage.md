@@ -48,7 +48,7 @@ If `phase1.retraceThreshold` is changed and `absoluteFloor` is not in the patch,
 
 ### pause-dsl / resume-dsl
 
-Pause or resume DSL monitoring. The cron keeps running; `dsl-v5.py` skips positions with `active: false`. Runtime state (highWater, tier, etc.) is preserved.
+Pause or resume DSL monitoring. The cron keeps running; `dsl-v5.py` skips positions with `active: false`. Runtime state (highWater, tier, etc.) is preserved. The SL order on Hyperliquid (and `slOrderId` in state) is set only by the cron runner when it processes the position — so if a position was paused right after add-dsl, the next cron run after resume (~within 3 min) will sync the floor to Hyperliquid and populate `slOrderId`.
 
 ```bash
 python3 scripts/dsl-cli.py pause-dsl <strategy-id>

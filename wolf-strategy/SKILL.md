@@ -116,7 +116,7 @@ To add a second strategy, run `wolf-setup.py` again with a different wallet/budg
 | 5 | Health Check | 10min | isolated | `scripts/job-health-check.py` | Per-strategy orphan DSL detection, state validation |
 | 6 | Risk Guardian | 5min | isolated | `scripts/risk-guardian.py` | Account-level guard rails: daily loss halt, max entries, consecutive loss cooldown |
 
-**v6.2 change:** DSL is no longer a combined runner. Each strategy has its own `dsl-v5.py` cron (from the `dsl-dynamic-stop-loss` skill), running with `DSL_STRATEGY_ID={strategyId_UUID}`. Wolf scripts call `dsl-cli.py` (add-dsl / delete-dsl) to create and archive DSL state; they never write state directly.
+**v6.2 change:** DSL is no longer a combined runner. Each strategy has its own `dsl-v5.py` cron (from the `dsl-dynamic-stop-loss` skill), run with `--strategy-id {strategyId_UUID} --state-dir {DSL_STATE_DIR}` (env vars are fallback). Wolf scripts call `dsl-cli.py` (add-dsl / delete-dsl) to create and archive DSL state; they never write state directly.
 
 With 2 strategies: **7 crons total** (5 wolf + 2 DSL). DSL cron IDs are stored in `dslCronJobId` in the strategy registry.
 
@@ -288,7 +288,7 @@ When ANY wolf script closes a position:
 Wolf delegates all DSL logic to the `dsl-dynamic-stop-loss` skill. Wolf's role:
 - **Create:** call `dsl-cli.py add-dsl {strategyId} {asset} {dex} --skill wolf-strategy --configuration {...} --state-dir {DSL_STATE_DIR}` after opening a position
 - **Delete:** call `dsl-cli.py delete-dsl {strategyId} {asset} {dex} --state-dir {DSL_STATE_DIR}` after closing a position
-- **Run:** `dsl-v5.py` runs as a per-strategy cron with `DSL_STRATEGY_ID={UUID}`
+- **Run:** `dsl-v5.py` runs as a per-strategy cron with `--strategy-id {UUID} --state-dir {DSL_STATE_DIR}` (env vars are fallback)
 
 Wolf never writes DSL state files directly.
 

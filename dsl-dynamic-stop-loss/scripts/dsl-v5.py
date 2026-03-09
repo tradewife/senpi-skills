@@ -10,6 +10,7 @@ Output: one JSON line per position (ndjson), or one line for strategy-level outc
 """
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -1035,10 +1036,17 @@ def process_one_position(state_file: str, strategy_id: str, now: str) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    state_dir = os.environ.get("DSL_STATE_DIR", DEFAULT_STATE_DIR)
-    strategy_id = os.environ.get("DSL_STRATEGY_ID", "").strip()
+    parser = argparse.ArgumentParser(description="DSL v5 — strategy-scoped trailing stop cron.")
+    parser.add_argument("--strategy-id", default="", help="Strategy UUID (overrides DSL_STRATEGY_ID env)")
+    parser.add_argument("--state-dir", default="", help="DSL state directory (overrides DSL_STATE_DIR env)")
+    args = parser.parse_args()
+
+    # CLI > env > default (backward compatible)
+    strategy_id = (args.strategy_id or os.environ.get("DSL_STRATEGY_ID", "") or "").strip()
+    state_dir = (args.state_dir or os.environ.get("DSL_STATE_DIR", "") or DEFAULT_STATE_DIR).strip() or DEFAULT_STATE_DIR
+
     if not strategy_id:
-        print(json.dumps({"status": "error", "error": "DSL_STRATEGY_ID required", "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}))
+        print(json.dumps({"status": "error", "error": "strategy_id required (use --strategy-id or DSL_STRATEGY_ID)", "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}))
         sys.exit(1)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

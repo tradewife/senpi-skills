@@ -113,7 +113,7 @@ For each successful entry, send each message in the `notifications` array from t
 **DSL v5.2:** One cron per enabled strategy (e.g. "DSL Aggressive Momentum"). Created by wolf-setup.py; stored in strategy registry as `dslCronJobId`.
 
 ```
-DSL [{strategyName}] cron: Run `PYTHONUNBUFFERED=1 python3 {DSL_SCRIPTS}/dsl-v5.py` with env DSL_STATE_DIR={WORKSPACE}/dsl/, DSL_STRATEGY_ID={strategyId_UUID}. Parse ndjson (one JSON line per position or strategy event).
+DSL [{strategyName}] cron: Run `PYTHONUNBUFFERED=1 python3 {DSL_SCRIPTS}/dsl-v5.py --strategy-id {strategyId_UUID} --state-dir {WORKSPACE}/dsl/`. Parse ndjson (one JSON line per position or strategy event).
 For each line:
   closed=true → send Telegram ({TELEGRAM}) with asset, direction, close reason, PnL. Evaluate open slot in strategy {strategyKey} for next signal.
   strategy_inactive=true → remove this cron (job ID: {DSL_CRON_JOB_ID}), run `python3 {DSL_SCRIPTS}/dsl-cleanup.py`.
@@ -121,6 +121,7 @@ For each line:
   sl_initial_sync=true → silent (HL SL is now active).
 No actionable events → HEARTBEAT_OK.
 ```
+Env vars `DSL_STRATEGY_ID` and `DSL_STATE_DIR` remain supported as fallback; prefer CLI args to avoid mistyping UUID.
 
 ---
 
