@@ -1,0 +1,42 @@
+{
+  "strategyId": "",
+  "wallet": "",
+  "chatId": "",
+  "maxPositions": 3,
+  "leverage": {"default": 7, "min": 5, "max": 10},
+  "entry": {
+    "maxBbWidthPct": 4.0,
+    "maxAtrPct": 1.5,
+    "rsiOversold": 35,
+    "rsiOverbought": 65,
+    "minScore": 5,
+    "marginPct": 0.12
+  },
+  "dsl": {
+    "phase1RetraceRoe": 6,
+    "phase1HardTimeoutMin": 60,
+    "phase1WeakPeakMin": 30,
+    "phase1DeadWeightMin": 20,
+    "tiers": [
+      {"triggerPct": 3, "lockPct": 1},
+      {"triggerPct": 5, "lockPct": 3},
+      {"triggerPct": 8, "lockPct": 5},
+      {"triggerPct": 12, "lockPct": 8},
+      {"triggerPct": 18, "lockPct": 14},
+      {"triggerPct": 25, "lockPct": 20}
+    ]
+  },
+  "risk": {
+    "maxEntriesPerDay": 8,
+    "maxDailyLossPct": 5,
+    "maxDrawdownPct": 15,
+    "maxSingleLossPct": 3,
+    "maxConsecutiveLosses": 4,
+    "cooldownMinutes": 30
+  },
+  "execution": {
+    "entryOrderType": "FEE_OPTIMIZED_LIMIT",
+    "entryEnsureTaker": true,
+    "exitOrderType": "MARKET"
+  }
+}
