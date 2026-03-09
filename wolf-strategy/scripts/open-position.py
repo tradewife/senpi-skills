@@ -273,10 +273,11 @@ def main():
             just_closed_coin = close_coin
             rotation_notif = f"🔄 ROTATION [{strategy_key}]: Closing {close_clean} for {clean_asset}"
 
-        # 3. Check slot availability (cross-check DSL files with on-chain positions)
+        # 3. Check slot availability — prefer clearinghouse (real-time); DSL count can be stale until next cron
         max_slots = cfg.get("slots", 2)
         dsl_count = count_active_dsls(strategy_key)
         on_chain_count = 0
+        ch_data = None
         if wallet:
             ch_data = mcporter_call_safe("strategy_get_clearinghouse_state",
                                           strategy_wallet=wallet)
@@ -302,7 +303,7 @@ def main():
                         on_chain_count -= 1
                         break
 
-        active_count = max(dsl_count, on_chain_count)
+        active_count = on_chain_count if ch_data is not None else dsl_count
         if active_count >= max_slots:
             fail("no_slots_available", used=active_count, max=max_slots,
                  dslCount=dsl_count, onChainCount=on_chain_count,
