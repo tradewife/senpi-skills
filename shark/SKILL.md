@@ -202,6 +202,8 @@ dsl/{strategyId}/
 
 ## Setup
 
+Before running setup, create a strategy wallet via `strategy_create_custom_strategy` (include `skill_name: "shark"`, `skill_version: "1.0.0"` — see `references/skill-attribution.md`).
+
 ```bash
 python3 scripts/shark-setup.py \
   --wallet 0x... \
