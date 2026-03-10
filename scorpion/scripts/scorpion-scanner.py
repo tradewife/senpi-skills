@@ -145,17 +145,158 @@ def check_whale_exits(state, our_positions, whales_by_addr):
     return exits
 
 
+# ─── Whale Performance Tracking ──────────────────────────────
+
+def load_whale_ledger(state):
+    """Load per-whale performance history."""
+    return state.get("whaleLedger", {})
+
+
+def record_whale_result(state, whale_addr, coin, pnl):
+    """Record a trade result for a whale. Call when mirrored position closes."""
+    ledger = state.get("whaleLedger", {})
+    if whale_addr not in ledger:
+        ledger[whale_addr] = {"trades": 0, "wins": 0, "losses": 0, "totalPnl": 0, "results": []}
+    entry = ledger[whale_addr]
+    entry["trades"] += 1
+    if pnl >= 0:
+        entry["wins"] += 1
+    else:
+        entry["losses"] += 1
+    entry["totalPnl"] = round(entry["totalPnl"] + pnl, 2)
+    entry["results"].append({"coin": coin, "pnl": round(pnl, 2), "ts": cfg.now_iso()})
+    entry["results"] = entry["results"][-20:]  # keep last 20
+    state["whaleLedger"] = ledger
+
+
+def is_whale_demoted(state, whale_addr, entry_cfg):
+    """Check if a whale should be demoted (stopped following)."""
+    ledger = state.get("whaleLedger", {})
+    if whale_addr not in ledger:
+        return False, ""
+
+    entry = ledger[whale_addr]
+    min_trades = entry_cfg.get("minTradesBeforeDemotion", 3)
+    if entry["trades"] < min_trades:
+        return False, ""
+
+    # Demotion rule 1: consecutive losses
+    max_consec_losses = entry_cfg.get("whaleMaxConsecLosses", 3)
+    recent = entry["results"][-max_consec_losses:]
+    if len(recent) >= max_consec_losses and all(r["pnl"] < 0 for r in recent):
+        return True, f"{max_consec_losses} consecutive losses"
+
+    # Demotion rule 2: negative total PnL after N trades
+    if entry["trades"] >= entry_cfg.get("minTradesForPnlCheck", 5) and entry["totalPnl"] < 0:
+        return True, f"net negative after {entry['trades']} trades (${entry['totalPnl']})"
+
+    # Demotion rule 3: win rate below threshold
+    min_wr = entry_cfg.get("whaleMinWinRate", 40)
+    wr = (entry["wins"] / entry["trades"]) * 100 if entry["trades"] > 0 else 0
+    if entry["trades"] >= min_trades and wr < min_wr:
+        return True, f"win rate {wr:.0f}% below {min_wr}% threshold"
+
+    return False, ""
+
+
+def get_demoted_whales(state):
+    """Return set of whale addresses that are currently demoted."""
+    return set(state.get("demotedWhales", []))
+
+
+def demote_whale(state, whale_addr, reason):
+    """Add whale to demoted list with cooldown."""
+    demoted = state.get("demotedWhales", [])
+    if whale_addr not in demoted:
+        demoted.append(whale_addr)
+    state["demotedWhales"] = demoted
+
+    demotions = state.get("demotionLog", [])
+    demotions.append({"address": whale_addr, "reason": reason, "ts": cfg.now_iso()})
+    state["demotionLog"] = demotions[-50:]
+
+
+# ─── Profit Taking ────────────────────────────────────────────
+
+def check_profit_taking(state, our_positions, config):
+    """Check open positions for partial TP or time-based TP opportunities."""
+    pt_cfg = config.get("profitTaking", {})
+    if not pt_cfg.get("enabled", False):
+        return []
+
+    actions = []
+    mirrored = state.get("mirrored", {})
+    partial_tps_done = state.get("partialTpsDone", {})
+
+    for pos in our_positions:
+        coin = pos["coin"]
+        mirror_info = mirrored.get(coin, {})
+        if not mirror_info:
+            continue
+
+        margin = pos.get("margin", 0)
+        upnl = pos.get("upnl", 0)
+        roe = (upnl / margin * 100) if margin > 0 else 0
+        entered_at = mirror_info.get("enteredAt", "")
+
+        # Track which partial TPs have fired for this position
+        coin_tps = partial_tps_done.get(coin, [])
+
+        # CHECK 1: Partial take-profit at ROE thresholds
+        for tp in pt_cfg.get("partialTp", []):
+            trigger = tp["triggerRoePct"]
+            close_pct = tp["closePct"]
+            tp_key = f"partial_{trigger}"
+
+            if roe >= trigger and tp_key not in coin_tps:
+                actions.append({
+                    "type": "partial_tp",
+                    "coin": coin,
+                    "closePct": close_pct,
+                    "reason": f"partial TP: {close_pct}% at {roe:.1f}% ROE (trigger: {trigger}%)",
+                    "orderType": tp.get("orderType", "FEE_OPTIMIZED_LIMIT"),
+                })
+                coin_tps.append(tp_key)
+
+        # CHECK 2: Time-based TP — whale still holding but we should take some off
+        time_cfg = pt_cfg.get("whaleStillHolding", {})
+        if time_cfg.get("enabled", False) and entered_at and roe > 0:
+            try:
+                from datetime import datetime, timezone
+                entered = datetime.fromisoformat(entered_at.replace("Z", "+00:00"))
+                hours_held = (datetime.now(timezone.utc) - entered).total_seconds() / 3600
+                max_hours = time_cfg.get("maxHoldHours", 8)
+                tp_key = f"time_{max_hours}h"
+
+                if hours_held >= max_hours and tp_key not in coin_tps:
+                    actions.append({
+                        "type": "time_tp",
+                        "coin": coin,
+                        "closePct": time_cfg.get("forceClosePct", 50),
+                        "reason": f"time TP: held {hours_held:.1f}h (max {max_hours}h), whale still holding, taking {time_cfg.get('forceClosePct', 50)}% off at {roe:.1f}% ROE",
+                        "orderType": "FEE_OPTIMIZED_LIMIT",
+                    })
+                    coin_tps.append(tp_key)
+            except (ValueError, TypeError):
+                pass
+
+        partial_tps_done[coin] = coin_tps
+
+    state["partialTpsDone"] = partial_tps_done
+    return actions
+
+
 def run():
     config = cfg.load_config()
     wallet, _ = cfg.get_wallet_and_strategy()
 
     if not wallet:
-        cfg.output({"success": True, "heartbeat": "HEARTBEAT_OK", "note": "no wallet"})
+        cfg.output({"success": True, "heartbeat": "NO_REPLY", "note": "no wallet"})
         return
 
     tc = cfg.load_trade_counter()
     if tc.get("gate") != "OPEN":
-        cfg.output({"success": True, "heartbeat": "HEARTBEAT_OK", "note": f"gate={tc['gate']}"})
+        cfg.output({"success": True, "heartbeat": "NO_REPLY", "note": f"gate={tc['gate']}"})
         return
 
     account_value, our_positions = cfg.get_positions(wallet)
@@ -165,10 +306,11 @@ def run():
     entry_cfg = config.get("entry", {})
     state = cfg.load_state("scorpion-state.json")
 
-    # Discover whales
+    # Discover whales (exclude demoted)
     whales = discover_whales(config)
     max_whales = entry_cfg.get("maxTrackedWhales", 10)
-    tracked_whales = whales[:max_whales]
+    demoted = get_demoted_whales(state)
+    tracked_whales = [w for w in whales if w["address"] not in demoted][:max_whales]
 
     # Fetch all whale positions
     whales_by_addr = {}
@@ -185,21 +327,50 @@ def run():
     # CHECK 1: Whale exits — if whale we followed exited, we exit
     whale_exits = check_whale_exits(state, our_positions, whales_by_addr)
     if whale_exits:
+        # Record results for whale performance tracking
+        for ex in whale_exits:
+            whale_addr = ex["mirror_info"].get("whaleAddress", "")
+            # Estimate PnL from our position
+            our_pos = next((p for p in our_positions if p["coin"] == ex["coin"]), None)
+            pnl = our_pos["upnl"] if our_pos else 0
+            record_whale_result(state, whale_addr, ex["coin"], pnl)
+
+            # Check if this whale should be demoted
+            is_demoted, reason = is_whale_demoted(state, whale_addr, entry_cfg)
+            if is_demoted:
+                demote_whale(state, whale_addr, reason)
+                ex["whale_demoted"] = True
+                ex["demotion_reason"] = reason
+
+            # Clean up mirrored state
+            state.get("mirrored", {}).pop(ex["coin"], None)
+
+        cfg.save_state(state, "scorpion-state.json")
         cfg.output({
             "success": True,
             "action": "exit",
             "exits": whale_exits,
             "note": "whale exited position — scorpion sting (immediate exit)",
+            "demoted_whales": len(get_demoted_whales(state)),
         })
-        # Clean up mirrored state
-        for ex in whale_exits:
-            state.get("mirrored", {}).pop(ex["coin"], None)
-        cfg.save_state(state, "scorpion-state.json")
         return
 
-    # CHECK 2: New entry signals
+    # CHECK 2: Profit taking — retail should be greedier than whales
+    if our_positions:
+        tp_actions = check_profit_taking(state, our_positions, config)
+        if tp_actions:
+            cfg.save_state(state, "scorpion-state.json")
+            cfg.output({
+                "success": True,
+                "action": "profit_take",
+                "actions": tp_actions,
+                "note": "taking profit — whale may hold forever but we capture gains",
+            })
+            return
+
+    # CHECK 3: New entry signals
     if len(our_positions) >= max_positions:
-        cfg.output({"success": True, "heartbeat": "HEARTBEAT_OK",
+        cfg.output({"success": True, "heartbeat": "NO_REPLY",
                      "note": f"max positions, tracking {len(tracked_whales)} whales"})
         cfg.save_state(state, "scorpion-state.json")
         return
@@ -257,7 +428,7 @@ def run():
     cfg.save_state(state, "scorpion-state.json")
 
     if not signals:
-        cfg.output({"success": True, "heartbeat": "HEARTBEAT_OK",
+        cfg.output({"success": True, "heartbeat": "NO_REPLY",
                      "note": f"tracking {len(tracked_whales)} whales, no consensus signals",
                      "whales_tracked": len(tracked_whales),
                      "positions_seen": len(all_whale_positions)})
