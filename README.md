@@ -167,3 +167,7 @@ These skills are built for Senpi on Hyperliquid, but the format is portable — 
 
 - **Skills are a work in progress.** Updates and new skills are announced in the [Senpi Telegram group](https://t.me/+0Z_77HSTD6EwYzhh).
 - **Feedback welcome.** [Share how skills are working for you](https://t.me/+0Z_77HSTD6EwYzhh).
+
+---
+
+## License: MIT
