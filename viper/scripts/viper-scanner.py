@@ -78,8 +78,8 @@ def extract_volumes(candles):
 
 # ─── Scan Assets ──────────────────────────────────────────────
 
-def get_scan_candidates():
-    """Get top assets by OI as scan candidates."""
+def get_scan_candidates(entry_cfg):
+    """Get top assets by USD-weighted OI as scan candidates."""
     data = cfg.mcporter_call("market_list_instruments")
     if not data or not data.get("success"):
         return []
@@ -87,12 +87,15 @@ def get_scan_candidates():
     if isinstance(instruments, dict):
         instruments = instruments.get("instruments", [])
     candidates = []
+    min_oi_usd = entry_cfg.get("minOiUsd", 5_000_000)
     for inst in instruments:
         coin = inst.get("coin") or inst.get("name", "")
         oi = float(inst.get("openInterest", 0))
-        if coin and oi > 1_000_000:
-            candidates.append({"coin": coin, "oi": oi})
-    candidates.sort(key=lambda x: x["oi"], reverse=True)
+        mark_px = float(inst.get("markPx", inst.get("midPx", 0)))
+        oi_usd = oi * mark_px if mark_px > 0 else 0
+        if coin and oi_usd > min_oi_usd:
+            candidates.append({"coin": coin, "oi": oi, "oi_usd": oi_usd, "price": mark_px})
+    candidates.sort(key=lambda x: x["oi_usd"], reverse=True)
     return candidates[:30]
 
 
@@ -224,7 +227,7 @@ def run():
         return
 
     entry_cfg = config.get("entry", {})
-    candidates = get_scan_candidates()
+    candidates = get_scan_candidates(entry_cfg)
     signals = []
 
     for cand in candidates:
@@ -242,8 +245,8 @@ def run():
     signals.sort(key=lambda x: x["score"], reverse=True)
     best = signals[0]
 
-    leverage = config.get("leverage", {}).get("default", 7)
-    margin_pct = entry_cfg.get("marginPct", 0.12)
+    leverage = config.get("leverage", {}).get("default", 8)
+    margin_pct = entry_cfg.get("marginPct", 0.28)
     margin = round(account_value * margin_pct, 2)
 
     cfg.output({
