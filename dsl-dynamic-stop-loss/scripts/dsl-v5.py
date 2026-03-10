@@ -752,6 +752,25 @@ def sync_sl_to_hyperliquid(
 # Close position (MCP)
 # ---------------------------------------------------------------------------
 
+def _close_response_no_position(raw: dict | None, result_text: str) -> bool:
+    """True if the close_position response indicates the position was already closed (e.g. CLOSE_NO_POSITION)."""
+    text_lower = (result_text or "").lower()
+    if "close_no_position" in text_lower or "no position" in text_lower or "no_position" in text_lower:
+        return True
+    if not raw or not isinstance(raw, dict):
+        return False
+    err = raw.get("error")
+    msg = ""
+    if isinstance(err, dict):
+        msg = (err.get("message") or "").lower()
+    elif isinstance(err, str):
+        msg = err.lower()
+    if "close_no_position" in msg or "no position" in msg or "no_position" in msg:
+        return True
+    top_msg = (raw.get("message") or "").lower()
+    return "close_no_position" in top_msg or "no position" in top_msg or "no_position" in top_msg
+
+
 def try_close_position(
     state: dict,
     price: float,
@@ -764,7 +783,8 @@ def try_close_position(
     close_retry_delay: float,
 ) -> tuple[bool, str | None]:
     """Attempt close via senpi:close_position. Mutates state. Returns (closed, close_result).
-    Uses state['closeReason'] if set (e.g. Phase 1 timeout / weak peak); otherwise breach reason."""
+    Uses state['closeReason'] if set (e.g. Phase 1 timeout / weak peak); otherwise breach reason.
+    Treats CLOSE_NO_POSITION (position already closed) as success so we clear pendingClose and archive."""
     wallet = state.get("wallet", "")
     coin = state["asset"]
     if not wallet:
@@ -782,7 +802,15 @@ def try_close_position(
                  json.dumps({"strategyWalletAddress": wallet, "coin": coin, "reason": reason})],
                 capture_output=True, text=True, timeout=30,
             )
-            result_text = cr.stdout.strip()
+            result_text = (cr.stdout or "").strip()
+            raw = _unwrap_mcporter_response(cr.stdout or "")
+            # Position already closed (e.g. SL filled or manual): treat as success and archive
+            if _close_response_no_position(raw, result_text):
+                state["active"] = False
+                state["pendingClose"] = False
+                state["closedAt"] = now
+                state["closeReason"] = reason + " (close_no_position: already closed)"
+                return True, result_text or "close_no_position (position already closed)"
             if cr.returncode == 0 and "error" not in result_text.lower():
                 state["active"] = False
                 state["pendingClose"] = False
@@ -810,26 +838,39 @@ def _archived_state_filename(state_file: str, now: str, suffix: str = "archived"
     return f"{base}_{suffix_safe}_{epoch}{ext}"
 
 
+def _write_state_and_archive(
+    state_file: str, state: dict, now: str, close_reason: str, filename_suffix: str
+) -> None:
+    """Set closeReason, closedAt, active=False on state; write to file; rename to archived filename.
+    Lets the agent know why the position was closed (sl_filled, external, or in-script reason)."""
+    state["closeReason"] = close_reason
+    state["closedAt"] = now
+    state["active"] = False
+    try:
+        with open(state_file, "w") as f:
+            json.dump(state, f, indent=2)
+        dest = _archived_state_filename(state_file, now, filename_suffix)
+        os.rename(state_file, dest)
+    except OSError:
+        pass
+
+
 def save_or_rename_state(
     state: dict, state_file: str, closed: bool, now: str, close_result: str | None
 ) -> str | None:
-    """Persist state: save file, or if closed rename to {base}_archived_{epoch}.json (archive).
-    Caller must set state['lastPrice'] before calling.
-    If closed but rename fails, writes state (active: False) so cleanup can proceed later.
+    """Persist state: save file, or if closed write state (with closeReason/closedAt) then rename to {base}_archived_{epoch}.json (archive).
+    Caller must set state['lastPrice'] before calling. Caller sets state['closeReason'] and state['closedAt'] when closing.
+    If closed but rename fails, state is already written so dsl-cleanup sees active: false and can clean strategy.
     """
     state["lastCheck"] = now
     if closed:
-        dest = _archived_state_filename(state_file, now, "archived")
         try:
+            with open(state_file, "w") as f:
+                json.dump(state, f, indent=2)
+            dest = _archived_state_filename(state_file, now, "archived")
             os.rename(state_file, dest)
             return close_result
         except OSError as e:
-            # Fallback: write state so dsl-cleanup sees active: false and can clean strategy
-            try:
-                with open(state_file, "w") as f:
-                    json.dump(state, f, indent=2)
-            except OSError:
-                pass
             return (close_result or "") + f"; rename_failed: {e}"
     with open(state_file, "w") as f:
         json.dump(state, f, indent=2)
@@ -1212,11 +1253,7 @@ def main() -> None:
             continue
         ok, order_status, _ = _mcp_execution_get_order_status(wallet, oid)
         if ok and order_status == "filled":
-            try:
-                dest = _archived_state_filename(path, now, "archived-sl")
-                os.rename(path, dest)
-            except OSError:
-                pass
+            _write_state_and_archive(path, state, now, "sl_filled", "archived-sl")
 
     # 3. Active positions from clearinghouse.
     coins, ch_error = get_active_position_coins(wallet)
@@ -1235,10 +1272,13 @@ def main() -> None:
     for path, asset in list(state_files):
         if asset not in coins:
             try:
-                dest = _archived_state_filename(path, now, "archived-external")
-                os.rename(path, dest)
-            except OSError:
-                pass
+                with open(path) as f:
+                    state = json.load(f)
+            except (OSError, json.JSONDecodeError):
+                state = {}
+            if not isinstance(state, dict):
+                state = {}
+            _write_state_and_archive(path, state, now, "external", "archived-external")
 
     processed = 0
     for coin in sorted(coins):

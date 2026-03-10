@@ -131,6 +131,15 @@ When the script syncs the dynamic stop loss to Hyperliquid via Senpi `edit_posit
 | `slOrderIdUpdatedAt` | string \| null | ISO 8601 timestamp when the SL was last synced (for debugging/audit). |
 | `lastSlSyncError` | string \| null | Set by script when `edit_position` or SL order resolution fails; next sync will retry. |
 
+### Archived / closed state (close reason)
+
+When the cron archives a position state file (rename to `*_archived_*`, `*_archived_sl_*`, or `*_archived_external_*`), it writes these fields into the JSON before renaming so the agent (or downstream tools) can tell why the position was closed:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `closeReason` | string | Why the position was closed. **`sl_filled`** — SL order filled on exchange. **`external`** — position no longer in clearinghouse (manual or other close). **`Phase 1 timeout …`**, **`Weak peak early cut`**, **`Dead weight cut (never positive)`**, **`Auto-deactivated: N consecutive fetch failures`**, or breach-related text — in-script close (breach, time-based cut, or fetch failures). |
+| `closedAt` | string | ISO 8601 timestamp when the position was closed / archived. |
+
 Path and file naming stay the same; these fields are optional and backfilled by the script when syncing.
 
 ## v5 Path Conventions
