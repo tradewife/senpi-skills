@@ -701,8 +701,8 @@ The CLI does not call OpenClaw directly; it emits cron intent JSON and owns gene
 2. Agent creates the **OpenClaw** cron with that `cron_job_id` and the output env/schedule.
 
 Similarly for delete:
-1. `dsl-cli.py delete-dsl ...` archives state files, outputs `{"cron_to_remove": "cron-job-id"}`.
-2. Agent removes that cron in OpenClaw.
+1. `dsl-cli.py delete-dsl ...` archives state files, outputs `{"cron_to_remove": {"cron_job_id": "cron-job-id"}}`.
+2. Agent removes that cron in OpenClaw using `cron_to_remove.cron_job_id`.
 
 ---
 

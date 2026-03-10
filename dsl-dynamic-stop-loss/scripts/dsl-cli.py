@@ -6,6 +6,7 @@ See design/dsl-cli-commands.md and references/cli-usage.md.
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import subprocess
@@ -441,9 +442,12 @@ def validate_dsl_config(cfg: dict) -> list[str]:
                         if mvf < 0 or mvf > 100:
                             errors.append("phase1.weakPeakCut.minValue must be a number 0–100 (ROE % for weak-peak threshold)")
 
+    # Only require "at least one phase enabled" when the config actually has phase objects
+    # (partial patches for update-dsl may omit phase1/phase2 and will be merged with existing config).
     phase1_enabled = isinstance(phase1, dict) and phase1.get("enabled", True)
     phase2_enabled = isinstance(phase2, dict) and phase2.get("enabled", True)
-    if not phase1_enabled and not phase2_enabled:
+    has_phase_blocks = isinstance(phase1, dict) or isinstance(phase2, dict)
+    if has_phase_blocks and not phase1_enabled and not phase2_enabled:
         errors.append("at least one of phase1.enabled or phase2.enabled must be true")
     if phase2_enabled and not phase1_enabled:
         if not tiers or not isinstance(tiers, list) or len(tiers) == 0:
@@ -745,6 +749,15 @@ def read_position_state(path: str) -> tuple[dict | None, str | None]:
 # ---------------------------------------------------------------------------
 
 
+def _deep_merge_dict(dest: dict, src: dict) -> None:
+    """Merge src into dest in place. For values that are dicts in both, merge recursively; otherwise replace."""
+    for k, v in src.items():
+        if k in dest and isinstance(dest[k], dict) and isinstance(v, dict):
+            _deep_merge_dict(dest[k], v)
+        else:
+            dest[k] = v
+
+
 def patch_config_into_state(state: dict, cfg: dict) -> list[str]:
     """Apply cfg (phase1, phase2TriggerTier, phase2, tiers) into state. Returns list of updated keys."""
     updated = []
@@ -934,9 +947,10 @@ def cmd_update_dsl(state_dir: str, args: argparse.Namespace) -> None:
         scope, out_asset, patch_failed = "position", asset, []
     else:
         old_cron_interval = strategy_data.get("cronScheduleMinutes", 3)
-        strategy_data["defaultConfig"] = {**strategy_data.get("defaultConfig", {}), **cfg}
-        if "tiers" in cfg and isinstance(cfg["tiers"], list):
-            strategy_data["defaultConfig"]["tiers"] = cfg["tiers"]
+        existing = strategy_data.get("defaultConfig", {})
+        merged = copy.deepcopy(existing) if existing else {}
+        _deep_merge_dict(merged, cfg)
+        strategy_data["defaultConfig"] = merged
         new_cron_interval = _safe_int(strategy_data["defaultConfig"].get("cronIntervalMinutes"), 3) or 3
         fields_updated = list(cfg.keys())
         patch_failed = []
@@ -1072,19 +1086,23 @@ def cmd_resume_dsl(state_dir: str, args: argparse.Namespace) -> None:
 
 
 def _archive_position_file(path: str, dest_path: str) -> tuple[bool, bool]:
-    """Archive position file by moving to dest_path (never delete). Returns (archived_ok, moved_ok)."""
+    """Archive position file by moving to dest_path (never delete). Returns (archived_ok, moved_ok).
+    If read fails (transient I/O, bad JSON), we still move the file to preserve original content
+    in the archive instead of overwriting with minimal state."""
     state, _ = read_position_state(path)
-    state = state if isinstance(state, dict) else {"active": False}
-    state["active"] = False
     try:
         os.rename(path, dest_path)
     except OSError:
         return False, False
+    if not isinstance(state, dict):
+        # Read failed: do not overwrite archived file; leave original content intact.
+        return True, True
+    state["active"] = False
     try:
         with open(dest_path, "w") as f:
             json.dump(state, f, indent=2)
     except OSError:
-        return True, True  # moved ok, write-back of active=False best-effort
+        pass  # moved ok; write-back of active=False is best-effort
     return True, True
 
 
@@ -1157,7 +1175,7 @@ def cmd_delete_dsl(state_dir: str, args: argparse.Namespace) -> None:
     if failed_to_remove:
         out["failed_to_remove"] = failed_to_remove
     if cron_to_remove:
-        out["cron_to_remove"] = cron_to_remove
+        out["cron_to_remove"] = {"cron_job_id": cron_to_remove}
     out["cron_removed"] = bool(cron_to_remove)
     out["cleanup_run"] = cleanup_run
     print(json.dumps(out))
