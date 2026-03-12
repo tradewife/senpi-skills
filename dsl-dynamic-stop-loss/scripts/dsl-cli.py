@@ -815,7 +815,7 @@ def build_position_state(
         "lockMode": lock_mode,
     }
     if config.get("phase2TriggerRoe") is not None:
-        state["phase2TriggerRoe"] = _safe_int(config["phase2TriggerRoe"], 0)
+        state["phase2TriggerRoe"] = _safe_float(config["phase2TriggerRoe"], 0.0)
     return state
 
 
@@ -891,7 +891,7 @@ def patch_config_into_state(state: dict, cfg: dict) -> list[str]:
         state["lockMode"] = cfg["lockMode"]
         updated.append("lockMode")
     if "phase2TriggerRoe" in cfg:
-        state["phase2TriggerRoe"] = _safe_int(cfg["phase2TriggerRoe"], 0)
+        state["phase2TriggerRoe"] = _safe_float(cfg["phase2TriggerRoe"], 0.0)
         updated.append("phase2TriggerRoe")
     return updated
 
