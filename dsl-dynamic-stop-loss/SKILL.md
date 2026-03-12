@@ -113,6 +113,7 @@ Full command reference and configuration merge rules: [references/cli-usage.md](
 | Tier math, LONG/SHORT | [references/tier-examples.md](references/tier-examples.md) |
 | Config tuning | [references/customization.md](references/customization.md) |
 | Cron-only → HL SL migration | [references/migration.md](references/migration.md) |
+| **ROE-based → High Water migration** (recommended for existing state) | [references/migration.md](references/migration.md#migrating-from-roe-based-fixed_roe-to-high-water) |
 
 **API:** Strategy/positions/price/close and SL sync via Senpi (mcporter). Do **not** use `strategy_close_strategy` for a single position — use `close_position`.
 

@@ -17,6 +17,8 @@ When you open a leveraged position, DSL watches it:
 ### High Water Mode (`lockMode: "pct_of_high_water"`)
 Trailing floor can be a **percentage of high-water ROE** instead of a fixed ROE lock. Set `lockMode: "pct_of_high_water"` and use `lockHwPct` on tiers (e.g. 85% of peak ROE). The floor trails the peak every tick with no ceiling — see [dsl-high-water-spec 1.0.md](dsl-high-water-spec%201.0.md) and [dsl-high-water-implementation-spec.md](dsl-high-water-implementation-spec.md).
 
+**Upgrading from ROE-based (fixed_roe)?** If you have existing strategies or positions using fixed ROE tiers, we recommend migrating to High Water using `update-dsl` with a High Water config (e.g. `--configuration @dsl-profile.json`). See [references/migration.md](references/migration.md#migrating-from-roe-based-fixed_roe-to-high-water).
+
 ### What's New in v5.2
 
 ### CLI Lifecycle Manager (`dsl-cli.py`)
