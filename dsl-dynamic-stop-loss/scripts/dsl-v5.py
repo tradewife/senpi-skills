@@ -1003,7 +1003,8 @@ def build_output(
         except (ValueError, TypeError):
             pass
     distance_to_next_tier = None
-    if 0 <= tier_idx < len(tiers) and tier_idx + 1 < len(tiers):
+    # tier_idx -1 (Phase 1, no tier reached) → next tier is first tier (index 0); allow so monitoring can show distance to first tier
+    if tier_idx >= -1 and tier_idx + 1 < len(tiers):
         distance_to_next_tier = round(tiers[tier_idx + 1]["triggerPct"] - upnl_pct, 2)
 
     status = "inactive" if closed else ("pending_close" if state.get("pendingClose") else "active")
