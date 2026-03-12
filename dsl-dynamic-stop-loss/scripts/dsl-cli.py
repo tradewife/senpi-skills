@@ -370,13 +370,14 @@ def validate_dsl_config(cfg: dict) -> list[str]:
     if tiers is not None and not isinstance(tiers, list):
         errors.append("tiers must be an array")
     elif isinstance(tiers, list):
+        lock_mode = cfg.get("lockMode", "fixed_roe")
         prev_trigger = -1
+        prev_lock_hw = -1
         for i, t in enumerate(tiers):
             if not isinstance(t, dict):
                 errors.append(f"tiers[{i}] must be an object")
                 continue
             tp = t.get("triggerPct")
-            lp = t.get("lockPct")
             if tp is None:
                 errors.append(f"tiers[{i}]: triggerPct is required")
             else:
@@ -386,12 +387,30 @@ def validate_dsl_config(cfg: dict) -> list[str]:
                 elif tv <= prev_trigger:
                     errors.append(f"tiers[{i}]: triggerPct must be strictly greater than previous tier ({prev_trigger})")
                 prev_trigger = tv
-            if lp is None:
-                errors.append(f"tiers[{i}]: lockPct is required")
+            if lock_mode == "pct_of_high_water":
+                lhw = t.get("lockHwPct")
+                if lhw is None:
+                    errors.append(f"tiers[{i}]: lockHwPct is required when lockMode is pct_of_high_water")
+                else:
+                    lhwv = _safe_float(lhw, -1)
+                    if lhwv < 0 or lhwv > 100:
+                        errors.append(f"tiers[{i}]: lockHwPct must be a number between 0 and 100")
+                    elif lhwv <= prev_lock_hw:
+                        errors.append(f"tiers[{i}]: lockHwPct must be strictly greater than previous tier ({prev_lock_hw})")
+                    prev_lock_hw = lhwv
+                cbr = t.get("consecutiveBreachesRequired")
+                if cbr is not None:
+                    cbrv = _safe_int(cbr, -1)
+                    if cbrv < 1 or cbrv > 5:
+                        errors.append(f"tiers[{i}]: consecutiveBreachesRequired must be an integer 1–5")
             else:
-                lv = _safe_float(lp, -1)
-                if lv < 0 or lv > 100:
-                    errors.append(f"tiers[{i}]: lockPct must be a number between 0 and 100")
+                lp = t.get("lockPct")
+                if lp is None:
+                    errors.append(f"tiers[{i}]: lockPct is required")
+                else:
+                    lv = _safe_float(lp, -1)
+                    if lv < 0 or lv > 100:
+                        errors.append(f"tiers[{i}]: lockPct must be a number between 0 and 100")
             ret = t.get("retrace")
             if ret is not None:
                 rv = _safe_float(ret, -1)
@@ -716,11 +735,15 @@ def build_position_state(
         "currentTierIndex": -1,
         "tierFloorPrice": None,
         "highWaterPrice": entry_price,
+        "highWaterRoe": 0,
         "floorPrice": abs_floor,
         "currentBreachCount": 0,
         "createdAt": now_iso,
         "cronIntervalMinutes": _safe_int(config.get("cronIntervalMinutes"), 3) or 3,
+        "lockMode": config.get("lockMode", "fixed_roe"),
     }
+    if config.get("phase2TriggerRoe") is not None:
+        state["phase2TriggerRoe"] = _safe_int(config["phase2TriggerRoe"], 0)
     return state
 
 
@@ -792,6 +815,12 @@ def patch_config_into_state(state: dict, cfg: dict) -> list[str]:
     if "cronIntervalMinutes" in cfg and cfg["cronIntervalMinutes"] is not None:
         state["cronIntervalMinutes"] = _safe_int(cfg["cronIntervalMinutes"], 3)
         updated.append("cronIntervalMinutes")
+    if "lockMode" in cfg:
+        state["lockMode"] = cfg["lockMode"]
+        updated.append("lockMode")
+    if "phase2TriggerRoe" in cfg:
+        state["phase2TriggerRoe"] = _safe_int(cfg["phase2TriggerRoe"], 0)
+        updated.append("phase2TriggerRoe")
     return updated
 
 

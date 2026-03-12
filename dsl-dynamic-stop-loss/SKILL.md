@@ -13,13 +13,13 @@ compatibility: >-
   only (main dex and xyz dex).
 metadata:
   author: jason-goldberg
-  version: "5.2"
+  version: "5.3"
   platform: senpi
   exchange: hyperliquid
   
 ---
 
-# Dynamic Stop Loss (DSL) v5
+# Dynamic Stop Loss (DSL) v5.3
 
 **Scope — DSL only.** This skill handles **only** dynamic/trailing stop loss (DSL), not normal (static) stop loss. If the user says "stop loss" without clearly meaning DSL or static, **ask** (e.g. "Do you want a trailing stop that moves up with profit, or a fixed price stop loss?").
 
@@ -115,3 +115,11 @@ Full command reference and configuration merge rules: [references/cli-usage.md](
 | Cron-only → HL SL migration | [references/migration.md](references/migration.md) |
 
 **API:** Strategy/positions/price/close and SL sync via Senpi (mcporter). Do **not** use `strategy_close_strategy` for a single position — use `close_position`.
+
+## Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| v5.3 | 2026-03-12 | High Water Mode: `lockMode: "pct_of_high_water"`, `lockHwPct` per tier |
+| v5.2 | 2026-03-01 | CLI lifecycle manager, multi-skill integration, SL order verification, reconciliation archive types, `cronIntervalMinutes`, config validation |
+| v5.0 | — | Two-phase trailing stop, exchange SL sync |
