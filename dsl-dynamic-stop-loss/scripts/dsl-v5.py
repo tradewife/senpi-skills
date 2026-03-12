@@ -586,11 +586,11 @@ def compute_effective_floor(
     breaches_needed = phase2.get("consecutiveBreachesRequired", 1)
     if tier_idx >= 0 and tier_idx < len(tiers) and isinstance(tiers[tier_idx], dict):
         tier = tiers[tier_idx]
-        breaches_needed = tier.get("consecutiveBreachesRequired", tier.get("breachesRequired", breaches_needed))
+        raw = tier.get("consecutiveBreachesRequired", tier.get("breachesRequired", breaches_needed))
         try:
-            breaches_needed = int(breaches_needed)
+            breaches_needed = int(raw)
         except (TypeError, ValueError):
-            pass
+            pass  # keep previous breaches_needed so max(1, breaches_needed) does not see non-numeric
     breaches_needed = max(1, breaches_needed)
     if is_long:
         trailing_floor = round(hw * (1 - retrace_price), 4)
