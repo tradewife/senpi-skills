@@ -1,7 +1,7 @@
 ---
 name: fox-strategy
 description: >-
-  FOX v0.2 — Fully autonomous multi-strategy trading for Hyperliquid perps via Senpi MCP.
+  FOX v0.1 — Fully autonomous multi-strategy trading for Hyperliquid perps via Senpi MCP.
   Forked from Wolf v7 + v7.1 data-driven optimizations (14-trade analysis: 2W/12L).
   Tighter absolute floor (0.02/lev, ~20% max ROE loss), aggressive Phase 1 timing
   (30min hard timeout, 15min weak peak, 10min dead weight), green-in-10 floor tightening,
@@ -10,20 +10,20 @@ description: >-
   BTC 1h bias alignment, market regime refresh 4h.
   8-cron architecture. Independent from Wolf.
   Requires Senpi MCP, python3, mcporter CLI, OpenClaw cron system.
-license: Apache-2.0
+license: MIT
 compatibility: >-
   Requires python3, mcporter (configured with Senpi auth), and OpenClaw cron system.
   Hyperliquid perp positions only (main dex and xyz dex).
   Depends on dsl-dynamic-stop-loss skill for trailing stops.
 metadata:
   author: jason-goldberg
-  version: "0.2"
+  version: "0.1"
   platform: senpi
   exchange: hyperliquid
 
 ---
 
-# FOX v0.2 — Autonomous Multi-Strategy Trading
+# FOX v0.1 — Autonomous Multi-Strategy Trading
 
 The FOX hunts for its human. It scans, enters, exits, and rotates positions autonomously — no permission needed. When criteria are met, it acts. Speed is edge.
 
