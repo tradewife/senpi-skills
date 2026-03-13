@@ -1,23 +1,62 @@
 ---
 name: grizzly-strategy
 description: >-
-  GRIZZLY — BTC alpha hunter. Single-asset focus at 15-20x leverage. Reads every BTC signal
-  (SM positioning, funding, OI, 4-timeframe trend, volume, ETH correlation) to build highest-conviction
-  entries. Thesis-based re-evaluation exits. DSL High Water Mode (mandatory) with BTC-specific wide
-  tiers. One position at a time. The apex predator for the apex asset.
-license: Apache-2.0
+  GRIZZLY v2.0 — BTC alpha hunter with position lifecycle. Single asset, every signal
+  (SM, funding, OI, 4TF trend, volume, ETH correlation). Three-mode lifecycle:
+  HUNTING (scan for entry) → RIDING (DSL trails) → STALKING (watch for reload on dip).
+  After DSL takes profit, watches for fresh momentum impulse while confirming macro thesis
+  is intact. If thesis dies, resets. If dip reloads, re-enters. DSL High Water Mode (mandatory).
+license: MIT
 metadata:
   author: jason-goldberg
-  version: "1.1"
+  version: "2.0"
   platform: senpi
   exchange: hyperliquid
 ---
 
-# GRIZZLY — BTC Alpha Hunter
+# GRIZZLY v2.0 — BTC Alpha Hunter with Position Lifecycle
 
-One asset. Every signal. Maximum conviction. 15-20x leverage.
+One asset. Every signal. Maximum conviction. Now with reload-on-dip.
 
 GRIZZLY stares at BTC and nothing else. Every signal source available — smart money positioning, funding rate, open interest, 4-timeframe trend structure, volume, ETH correlation — feeds into a single thesis: is there a high-conviction BTC trade right now?
+
+## What's New in v2.0: The Three-Mode Lifecycle
+
+v1.0 treated every entry as independent. After DSL closed a winning trade, GRIZZLY immediately scanned for a new entry — often re-entering on a minor dip that was just the aftershock of the move it just profited from.
+
+v2.0 adds a STALKING mode between exits and new entries. After DSL takes profit, GRIZZLY watches the asset for a genuine reload opportunity while confirming the macro thesis is still alive.
+
+### MODE 1 — HUNTING (default)
+
+Normal behavior. Scan BTC every 3 minutes. All signals must align (4h trend, 1h momentum, SM, funding, OI, volume). Score 10+ to enter. When a position opens, switch to MODE 2.
+
+### MODE 2 — RIDING
+
+Active position. DSL High Water trails it. Thesis re-evaluation every scan. If thesis breaks (4h trend flips, SM flips, funding extreme, volume dies, ETH diverges) → thesis exit and reset to MODE 1 (thesis is dead, don't stalk). If DSL closes the position → switch to MODE 3.
+
+### MODE 3 — STALKING
+
+DSL locked profits. The trend may not be over. Watch for a reload opportunity. Every scan checks:
+
+**Reload conditions (ALL must pass):**
+1. At least one completed 1h candle since exit (minimum ~30 min)
+2. Fresh 5m momentum impulse in the exit direction (new acceleration, not dead cat bounce)
+3. OI stable or growing (not collapsing from profit-taking)
+4. Volume at least 50% of what powered the original entry
+5. Funding not spiked into crowded territory (< 50% annualized)
+6. SM still aligned in the exit direction
+7. 4h trend structure still intact
+
+If ALL pass → RELOAD. Re-enter same direction, same leverage. Switch to MODE 2.
+
+**Kill conditions (ANY triggers reset to MODE 1):**
+- 4h trend reversed
+- SM flipped against exit direction
+- OI collapsed 20%+
+- Stalking for more than 6 hours with no reload
+- Funding spiked above 100% annualized
+
+The loop: HUNTING → RIDING → STALKING → RELOAD → RIDING → STALKING → ... until a kill condition fires → HUNTING.
 
 **maxPositions: 1.** GRIZZLY holds one BTC position at a time. All capital, all attention, one trade.
 
@@ -44,8 +83,6 @@ When creating DSL state files for any GRIZZLY position, you MUST include:
 ```
 
 **If `tiers` or `lockMode` is missing from the state file, the DSL engine falls back to flat 1.5% retrace and High Water Mode is silently disabled. Always verify the state file contains these fields after creation.**
-
-**DSL default:** Use this skill's **`config/dsl-profile.json`** as the default when setting up DSL (e.g. `dsl-cli.py add-dsl` / `update-dsl` with `--configuration @<path-to-grizzly>/config/dsl-profile.json`). Use it unless the user explicitly provides a custom DSL configuration via the agent.
 
 **FALLBACK (until DSL engine supports `pct_of_high_water`):** Use the `tiersLegacyFallback` array from `grizzly-config.json` — wide fixed tiers going up to +100% ROE. Switch to High Water tiers the moment the engine supports them.
 
@@ -186,5 +223,5 @@ On EVERY session, check `config/bootstrap-complete.json`. If missing:
 
 ## License
 
-Apache-2.0 — Built by Senpi (https://senpi.ai). Attribution required for derivative works.
+MIT — Built by Senpi (https://senpi.ai). 
 Source: https://github.com/Senpi-ai/senpi-skills
