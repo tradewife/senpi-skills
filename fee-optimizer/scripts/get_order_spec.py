@@ -25,10 +25,13 @@ def get_order_spec(context: str, execution_timeout_seconds: int | None = 45) -> 
     if context == "entry_resting":
         return {"orderType": "FEE_OPTIMIZED_LIMIT"}
     if context == "exit_tp":
-        return {
+        spec = {
             "orderType": "FEE_OPTIMIZED_LIMIT",
             "feeOptimizedLimitOptions": {"ensureExecutionAsTaker": True},
         }
+        if execution_timeout_seconds is not None:
+            spec["feeOptimizedLimitOptions"]["executionTimeoutSeconds"] = execution_timeout_seconds
+        return spec
     if context in ("exit_sl", "exit_emergency"):
         return {"orderType": "MARKET"}
     raise ValueError(f"Unknown context: {context}. Use one of: {CONTEXTS}")
@@ -40,10 +43,9 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=45, metavar="SECONDS", help="Execution timeout for entry/exit_tp (1-300)")
     args = parser.parse_args()
     timeout = args.timeout if 1 <= args.timeout <= 300 else 45
-    if args.context == "exit_tp":
-        timeout = None  # exit_tp uses server default unless we add --timeout for it later
+    timeout_for_spec = timeout if args.context in ("entry", "exit_tp") else None
     try:
-        spec = get_order_spec(args.context, timeout if args.context == "entry" else None)
+        spec = get_order_spec(args.context, timeout_for_spec)
         print(json.dumps(spec))
         return 0
     except Exception as e:
