@@ -6,7 +6,7 @@ The ambush sniper. Catches explosive First Jumps — assets rocketing from obscu
 
 ## What FOX Does
 
-FOX scans Hyperliquid's smart money leaderboard every 3 minutes looking for First Jump signals — assets that jump 15+ ranks in a single scan with positive velocity and multiple confirming reasons. When a qualifying signal fires, FOX enters immediately with maker orders and protects the position with DSL v5 trailing stops synced to Hyperliquid.
+FOX scans Hyperliquid's smart money leaderboard every 3 minutes looking for First Jump signals — assets that jump 15+ ranks in a single scan with positive velocity and multiple confirming reasons. When a qualifying signal fires, FOX enters immediately with maker orders and protects the position with DSL v5.3.1 trailing stops synced to Hyperliquid.
 
 FOX also runs a copy trading mode that mirrors positions of top-performing traders. Default budget split: **20% mirror trading / 80% autonomous** (configurable).
 
@@ -42,7 +42,7 @@ fox-export/
 │   ├── fox-strategy/          # Entry rules, cron templates, references
 │   │   ├── SKILL.md           # Full entry/exit logic + notification policy
 │   │   └── references/        # Cron templates, API tools, learnings
-│   └── dsl-dynamic-stop-loss/ # DSL v5 trailing stop engine
+│   └── dsl-dynamic-stop-loss/ # DSL v5.3.1 trailing stop engine
 │       ├── SKILL.md
 │       ├── scripts/dsl-v5.py
 │       └── references/
@@ -65,7 +65,7 @@ fox-export/
 | # | Cron | Interval | Purpose |
 |---|---|---|---|
 | 1 | Emerging Movers | 3 min | Primary FJ scanner — entry signal |
-| 2 | DSL v5 | 3 min | Trailing stops + HL SL sync |
+| 2 | DSL v5.3.1 | 3 min | Trailing stops + HL SL sync |
 | 3 | SM Flip Detector | 5 min | Instant cut on SM conviction collapse |
 | 4 | Watchdog | 5 min | Margin buffer + liquidation distance |
 | 5 | Portfolio Summary | 15 min | P&L tracking |

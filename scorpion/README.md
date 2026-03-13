@@ -7,7 +7,7 @@ The poisonous tail. Tracks top whale wallets from the leaderboard, monitors thei
 | Script | Freq | Purpose |
 |--------|------|---------|
 | `scorpion-scanner.py` | 5 min | Discover whales, track positions, detect consensus, mirror entries |
-| DSL v5 (shared) | 3 min | Trailing stops |
+| DSL v5.3.1 (shared) | 3 min | Trailing stops |
 
 ## Edge
 
@@ -30,7 +30,7 @@ All crons run **isolated sessions** with `agentTurn` payloads. Use `NO_REPLY` fo
 | Cron | Interval | Session | Payload |
 |------|----------|---------|---------|
 | Scanner | */5 * * * * | isolated | agentTurn |
-| DSL v5 | */3 * * * * | isolated | agentTurn |
+| DSL v5.3.1 | */3 * * * * | isolated | agentTurn |
 
 ## Notification Policy (Strict)
 
@@ -57,6 +57,6 @@ No action = `NO_REPLY`, nothing else. No rogue background processes.
 ## Requires
 - OpenClaw (with exec, cron, Telegram)
 - Senpi MCP server (configured via mcporter)
-- DSL v5 skill (dsl-dynamic-stop-loss)
+- DSL v5.3.1 skill (dsl-dynamic-stop-loss)
 - Python 3
 - `mcporter` CLI

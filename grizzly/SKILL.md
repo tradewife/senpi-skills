@@ -47,7 +47,7 @@ When creating DSL state files for any GRIZZLY position, you MUST include:
 
 **DSL default:** Use this skill's **`config/dsl-profile.json`** as the default when setting up DSL (e.g. `dsl-cli.py add-dsl` / `update-dsl` with `--configuration @<path-to-grizzly>/config/dsl-profile.json`). Use it unless the user explicitly provides a custom DSL configuration via the agent.
 
-**FALLBACK (until DSL engine supports `pct_of_high_water`):** Use the `tiersLegacyFallback` array from `grizzly-config.json` — wide fixed tiers going up to +100% ROE. Switch to High Water tiers the moment the engine supports them.
+**FALLBACK (DSL engine < v5.3.1):** Use the `tiersLegacyFallback` array from `grizzly-config.json` — wide fixed tiers going up to +100% ROE. DSL v5.3.1+ supports High Water; use High Water tiers when the engine is v5.3.1 or newer.
 
 ## Why BTC-Only at High Leverage
 
@@ -145,7 +145,7 @@ Stagnation TP: 12% ROE stale for 90 minutes → close. BTC trends consolidate lo
 | Cron | Interval | Session | Purpose |
 |---|---|---|---|
 | Scanner | 3 min | isolated | Thesis builder (if flat) + thesis re-evaluator (if holding) |
-| DSL v5 | 3 min | isolated | High Water Mode trailing stops |
+| DSL v5.3.1 | 3 min | isolated | High Water Mode trailing stops |
 
 Both MUST be isolated sessions with `agentTurn`. Use `NO_REPLY` for idle cycles.
 
@@ -182,7 +182,7 @@ On EVERY session, check `config/bootstrap-complete.json`. If missing:
 | `scripts/grizzly-scanner.py` | BTC thesis builder + re-evaluator |
 | `scripts/grizzly_config.py` | Shared config, MCP helpers, state I/O |
 | `config/grizzly-config.json` | All configurable variables with DSL High Water tiers + legacy fallback |
-| DSL v5 (shared skill) | Trailing stop engine — MUST be configured with High Water Mode |
+| DSL v5.3.1 (shared skill) | Trailing stop engine — MUST be configured with High Water Mode |
 
 ## License
 
