@@ -49,6 +49,7 @@ def fetch_markets():
     """Fetch current SM market concentration."""
     try:
         data = cfg.mcporter_call("leaderboard_get_markets", limit=100)
+        data = data.get("data", data)  # unwrap top-level 'data' wrapper
         raw = data.get("markets", data)
         if isinstance(raw, dict):
             raw = raw.get("markets", [])
