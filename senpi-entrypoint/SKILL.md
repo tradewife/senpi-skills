@@ -102,39 +102,15 @@ Load and follow the `senpi-onboard` skill instructions. Pass this context:
 
 ---
 
-## Step 2: Discover
+## Step 2: Welcome
 
-**Run this step always:** after Step 1 completes, or immediately when the initial check found `SENPI_AUTH_TOKEN` set. Do not skip this step when the user already has a token — they still need to see the skill catalog.
+**Run this step always:** after Step 1 completes, or immediately when the initial check found `SENPI_AUTH_TOKEN` set.
 
-Fetch the skill catalog:
+Send the welcome message from [references/post-onboarding.md](references/post-onboarding.md) (`## Post-Onboarding Welcome` section). Present the three options and wait for the user to respond.
 
-```bash
-CATALOG=$(curl -s https://raw.githubusercontent.com/Senpi-ai/senpi-skills/refs/heads/feature/modify-onboarding/catalog.json)
-```
+**STOP. Do NOT render the strategy catalog here.** The catalog is only shown if the user explicitly asks (see `## Strategy Catalog` section in post-onboarding.md).
 
-If the command fails or returns empty, point the user to the official [Senpi Skills repository](https://github.com/Senpi-ai/senpi-skills) to browse available skills.
-
-Render the catalog using the following rules:
-1. Parse `CATALOG` as JSON
-2. Group skills by the `group` field, using the `groups` array for display order, emoji, and label
-3. Sort within each group by `sort_order`
-4. For each skill: `{emoji} {name} — {tagline}` and append `{performance}` if present
-
-Present using this template:
-```
-Senpi Predators — AI trading strategies, all open source, all tracked live.
-
-{for each group}
-{group.emoji} {group.label}:
-  {skill.emoji} {skill.name} — {skill.tagline} {skill.performance if present}
-{end}
-
-All tracked live at senpi.ai/predators
-
-Which sounds interesting? I can explain any in detail or deploy one right now.
-```
-
-**Gate — verify before proceeding:** User has seen the skill catalog.
+**Gate — verify before proceeding:** User has seen the welcome message and chosen a path.
 
 ---
 

@@ -4,7 +4,7 @@
 
 Senpi Skills is the open source repository for autonomous trading strategies on [Hyperliquid](https://hyperliquid.xyz) via [Senpi](https://senpi.ai). Each skill is a self-contained trading agent that scans markets 24/7, enters and exits positions, manages trailing stops, and protects capital — autonomously.
 
-**Live tracker:** [senpi.ai/predators](https://senpi.ai/predators) — every skill running with real money, full transparency.
+**Live tracker:** [strategies.senpi.ai](https://strategies.senpi.ai) — every skill running with real money, full transparency.
 
 ## Skills (16 unique trading agents)
 
@@ -126,7 +126,7 @@ Plugins ──→ Skills ──→ Trading Strategies
 1. Deploy [OpenClaw](https://openclaw.ai) with [Senpi](https://senpi.ai) MCP configured
 2. Install a skill: `npx skills add Senpi-ai/senpi-skills/<skill-name>`
 3. The agent reads SKILL.md, runs bootstrap, creates crons, and starts trading
-4. Monitor via Telegram alerts and [senpi.ai/predators](https://senpi.ai/predators)
+4. Monitor via Telegram alerts and [strategies.senpi.ai](https://strategies.senpi.ai)
 
 **Recommended first skill:** FOX — proven +18% ROI, includes copy trading + autonomous mode.
 

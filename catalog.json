@@ -14,33 +14,35 @@
   "skills": [
     {
       "id": "fox-strategy",
+      "tracker_slug": "fox",
       "name": "FOX",
       "emoji": "🦊",
       "tagline": "Catches explosive First Jumps on the leaderboard before the crowd.",
       "group": "proven",
       "sort_order": 1,
-      "performance": "+18.1% ROI",
       "min_budget": 500,
       "risk_level": "moderate",
       "base_skill": null,
       "branch": "main",
-      "predators_url": "https://senpi.ai/predators/fox"
+      "predators_url": "https://strategies.senpi.ai/bot/fox"
     },
     {
       "id": "viper",
+      "tracker_slug": "viper",
       "name": "Viper",
       "emoji": "🐍",
       "tagline": "Trades range-bound chop at support/resistance. Works when nothing is trending.",
       "group": "proven",
       "sort_order": 2,
-      "performance": "+6.2% ROI",
       "min_budget": 500,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "viper-2-0"
+      "branch": "viper-2-0",
+      "predators_url": "https://strategies.senpi.ai/bot/viper"
     },
     {
       "id": "grizzly-strategy",
+      "tracker_slug": "grizzly",
       "name": "Grizzly",
       "emoji": "🐻",
       "tagline": "BTC only. Every signal source. 15-20x leverage. Maximum conviction.",
@@ -49,10 +51,12 @@
       "min_budget": 2000,
       "risk_level": "aggressive",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/grizzly"
     },
     {
       "id": "cheetah-strategy",
+      "tracker_slug": "cheetah",
       "name": "Cheetah",
       "emoji": "🐆",
       "tagline": "HYPE only. 8-12x leverage. Fastest predator for the fastest asset.",
@@ -61,10 +65,12 @@
       "min_budget": 1000,
       "risk_level": "aggressive",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/cheetah"
     },
     {
       "id": "tiger-strategy",
+      "tracker_slug": "tiger",
       "name": "Tiger",
       "emoji": "🐅",
       "tagline": "5 parallel scanners, 230 assets, auto-optimizer that learns from results.",
@@ -73,10 +79,12 @@
       "min_budget": 2000,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/tiger"
     },
     {
       "id": "cobra-strategy",
+      "tracker_slug": "cobra",
       "name": "Cobra",
       "emoji": "🐍",
       "tagline": "Triple convergence. Only strikes when price, volume, and new money all agree.",
@@ -85,10 +93,12 @@
       "min_budget": 500,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/cobra"
     },
     {
       "id": "bison-strategy",
+      "tracker_slug": "bison",
       "name": "Bison",
       "emoji": "🦬",
       "tagline": "Conviction holder. Top 10 assets, 4h trend thesis, holds hours to days.",
@@ -97,10 +107,12 @@
       "min_budget": 2000,
       "risk_level": "aggressive",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/bison"
     },
     {
       "id": "hawk-strategy",
+      "tracker_slug": "hawk",
       "name": "Hawk",
       "emoji": "🦅",
       "tagline": "Scans 4 markets every 30s, picks the single strongest signal.",
@@ -109,10 +121,12 @@
       "min_budget": 1000,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/hawk"
     },
     {
       "id": "scorpion-strategy",
+      "tracker_slug": "scorpion",
       "name": "Scorpion",
       "emoji": "🦂",
       "tagline": "Mirrors whale wallets. Exits the instant they do.",
@@ -121,10 +135,12 @@
       "min_budget": 500,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/scorpion"
     },
     {
       "id": "owl-strategy",
+      "tracker_slug": "owl",
       "name": "Owl",
       "emoji": "🦉",
       "tagline": "Pure contrarian. Enters against extreme crowding when exhaustion signals fire.",
@@ -133,10 +149,12 @@
       "min_budget": 1000,
       "risk_level": "aggressive",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/owl"
     },
     {
       "id": "croc-strategy",
+      "tracker_slug": "croc",
       "name": "Croc",
       "emoji": "🐊",
       "tagline": "Funding rate arbitrage. Collects payments while waiting for the snap.",
@@ -145,10 +163,12 @@
       "min_budget": 500,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/croc"
     },
     {
       "id": "shark",
+      "tracker_slug": "shark",
       "name": "Shark",
       "emoji": "🦈",
       "tagline": "Smart money consensus + liquidation cascade front-running.",
@@ -157,10 +177,12 @@
       "min_budget": 1000,
       "risk_level": "aggressive",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/shark"
     },
     {
       "id": "wolf-strategy",
+      "tracker_slug": null,
       "name": "Wolf",
       "emoji": "🐺",
       "tagline": "Pack hunter. Leaderboard momentum, enters early on what smart money is buying.",
@@ -169,10 +191,12 @@
       "min_budget": 500,
       "risk_level": "moderate",
       "base_skill": null,
-      "branch": "main"
+      "branch": "main",
+      "predators_url": "https://strategies.senpi.ai/bot/wolf"
     },
     {
       "id": "dire-wolf",
+      "tracker_slug": "dire-wolf",
       "name": "Dire Wolf",
       "emoji": "🐺",
       "tagline": "Wolf in sniper mode. Fewer trades, zero rotation, maker fees.",
@@ -180,10 +204,12 @@
       "sort_order": 1,
       "min_budget": 1000,
       "risk_level": "moderate",
-      "base_skill": "wolf-strategy"
+      "base_skill": "wolf-strategy",
+      "predators_url": "https://strategies.senpi.ai/bot/dire-wolf"
     },
     {
       "id": "feral-fox",
+      "tracker_slug": "feral-fox",
       "name": "Feral Fox",
       "emoji": "🦊",
       "tagline": "FOX with higher conviction filters. Score 7+, 3 reasons minimum.",
@@ -191,10 +217,12 @@
       "sort_order": 2,
       "min_budget": 500,
       "risk_level": "moderate",
-      "base_skill": "fox-strategy"
+      "base_skill": "fox-strategy",
+      "predators_url": "https://strategies.senpi.ai/bot/feral-fox"
     },
     {
       "id": "ghost-fox",
+      "tracker_slug": "ghost-fox",
       "name": "Ghost Fox",
       "emoji": "👻",
       "tagline": "Feral Fox + infinite trailing at 85% of peak. No ceiling.",
@@ -202,10 +230,12 @@
       "sort_order": 3,
       "min_budget": 500,
       "risk_level": "moderate",
-      "base_skill": "fox-strategy"
+      "base_skill": "fox-strategy",
+      "predators_url": "https://strategies.senpi.ai/bot/ghost-fox"
     },
     {
       "id": "mamba",
+      "tracker_slug": "mamba",
       "name": "Mamba",
       "emoji": "🐍",
       "tagline": "Viper + infinite trailing. Catches the bounce AND the breakout.",
@@ -213,7 +243,8 @@
       "sort_order": 4,
       "min_budget": 500,
       "risk_level": "moderate",
-      "base_skill": "viper"
+      "base_skill": "viper",
+      "predators_url": "https://strategies.senpi.ai/bot/mamba"
     }
   ]
 }
