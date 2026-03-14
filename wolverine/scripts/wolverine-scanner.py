@@ -116,7 +116,8 @@ def get_btc_correlation():
 
 
 def get_hype_sm_direction():
-    """Get smart money positioning specifically for HYPE."""
+    """Get smart money positioning specifically for HYPE.
+    leaderboard_get_markets returns: token, direction, pct_of_top_traders_gain, trader_count."""
     data = cfg.mcporter_call("leaderboard_get_markets")
     if not data or not data.get("success"):
         return None, 0, 0
@@ -127,18 +128,43 @@ def get_hype_sm_direction():
     if isinstance(markets, dict):
         markets = markets.get("markets", [])
 
+    # Aggregate long vs short entries for HYPE
+    hype_long_pct = 0
+    hype_short_pct = 0
+    hype_traders = 0
+    found = False
+
     for m in markets:
         if not isinstance(m, dict):
             continue
-        if m.get("coin", m.get("asset", "")) == "HYPE":
-            long_pct = float(m.get("longPct", m.get("pctOfGainsLong", 50)))
-            trader_count = int(m.get("traderCount", m.get("numTraders", 0)))
-            if long_pct > 58:
-                return "LONG", long_pct, trader_count
-            elif long_pct < 42:
-                return "SHORT", 100 - long_pct, trader_count
-            return "NEUTRAL", 50, trader_count
-    return None, 0, 0
+        token = m.get("token", m.get("coin", m.get("asset", "")))
+        if token != "HYPE":
+            continue
+        found = True
+        direction = m.get("direction", "").lower()
+        pct = float(m.get("pct_of_top_traders_gain", m.get("longPct", 0)))
+        traders = int(m.get("trader_count", m.get("traderCount", 0)))
+        if direction == "long":
+            hype_long_pct = pct
+            hype_traders += traders
+        elif direction == "short":
+            hype_short_pct = pct
+            hype_traders += traders
+
+    if not found:
+        return None, 0, 0
+
+    # Determine dominant direction
+    total = hype_long_pct + hype_short_pct
+    if total == 0:
+        return "NEUTRAL", 50, hype_traders
+
+    long_ratio = (hype_long_pct / total) * 100 if total > 0 else 50
+    if long_ratio > 58:
+        return "LONG", long_ratio, hype_traders
+    elif long_ratio < 42:
+        return "SHORT", 100 - long_ratio, hype_traders
+    return "NEUTRAL", 50, hype_traders
 
 
 # ─── Thesis Builder (BTC Only) ───────────────────────────────
@@ -154,8 +180,9 @@ def build_hype_thesis(entry_cfg):
     candles_15m = hype_data.get("candles", {}).get("15m", [])
     candles_1h = hype_data.get("candles", {}).get("1h", [])
     candles_4h = hype_data.get("candles", {}).get("4h", [])
-    funding = float(hype_data.get("funding", 0))
-    oi = float(hype_data.get("openInterest", 0))
+    asset_ctx = hype_data.get("asset_context", {})
+    funding = float(asset_ctx.get("funding", hype_data.get("funding", 0)))
+    oi = float(asset_ctx.get("openInterest", hype_data.get("openInterest", 0)))
 
     if len(candles_5m) < 12 or len(candles_15m) < 8 or len(candles_1h) < 8 or len(candles_4h) < 6:
         return None
@@ -304,14 +331,15 @@ def build_hype_thesis(entry_cfg):
 # ─── Thesis Re-Evaluation ────────────────────────────────────
 
 def evaluate_hype_position(direction, entry_cfg):
-    """Re-evaluate BTC thesis. Returns (still_valid, invalidation_reasons)."""
+    """Re-evaluate HYPE thesis. Returns (still_valid, invalidation_reasons)."""
     hype_data = get_hype_full_picture()
     if not hype_data:
         return True, ["data_unavailable_hold"]
 
     candles_1h = hype_data.get("candles", {}).get("1h", [])
     candles_4h = hype_data.get("candles", {}).get("4h", [])
-    funding = float(hype_data.get("funding", 0))
+    asset_ctx = hype_data.get("asset_context", {})
+    funding = float(asset_ctx.get("funding", hype_data.get("funding", 0)))
 
     if len(candles_4h) < 6:
         return True, ["insufficient_data_hold"]
@@ -376,7 +404,8 @@ def evaluate_reload(exit_state, entry_cfg):
     candles_5m = hype_data.get("candles", {}).get("5m", [])
     candles_1h = hype_data.get("candles", {}).get("1h", [])
     candles_4h = hype_data.get("candles", {}).get("4h", [])
-    funding = float(hype_data.get("funding", 0))
+    asset_ctx = hype_data.get("asset_context", {})
+    funding = float(asset_ctx.get("funding", hype_data.get("funding", 0)))
 
     kill_reasons = []
     reload_checks = []
