@@ -94,6 +94,8 @@ def get_top_assets(n=10):
         instruments = instruments.get("instruments", [])
     assets = []
     for inst in instruments:
+        if not isinstance(inst, dict):
+            continue
         coin = inst.get("coin") or inst.get("name", "")
         vol = float(inst.get("dayNtlVlm", inst.get("volume24h", 0)))
         mark_px = float(inst.get("markPx", inst.get("midPx", 0)))
@@ -109,16 +111,41 @@ def get_sm_direction(coin):
         return None, 0
     markets = data.get("data", data)
     if isinstance(markets, dict):
-        markets = markets.get("markets", markets.get("leaderboard", []))
+        markets = markets.get("markets", markets.get("leaderboard", markets))
+    if isinstance(markets, dict):
+        markets = markets.get("markets", [])
+
+    # Aggregate long vs short entries for the coin
+    coin_long_pct = 0
+    coin_short_pct = 0
+    found = False
+
     for m in markets:
-        if m.get("coin", m.get("asset", "")) == coin:
-            long_pct = float(m.get("longPct", m.get("pctOfGainsLong", 50)))
-            if long_pct > 58:
-                return "LONG", long_pct
-            elif long_pct < 42:
-                return "SHORT", 100 - long_pct
-            return "NEUTRAL", 50
-    return None, 0
+        if not isinstance(m, dict):
+            continue
+        token = m.get("token", m.get("coin", m.get("asset", "")))
+        if token != coin:
+            continue
+        found = True
+        direction = m.get("direction", "").lower()
+        pct = float(m.get("pct_of_top_traders_gain", m.get("longPct", 0)))
+        if direction == "long":
+            coin_long_pct = pct
+        elif direction == "short":
+            coin_short_pct = pct
+
+    if not found:
+        return None, 0
+
+    total = coin_long_pct + coin_short_pct
+    if total == 0:
+        return "NEUTRAL", 50
+    long_ratio = (coin_long_pct / total) * 100 if total > 0 else 50
+    if long_ratio > 58:
+        return "LONG", long_ratio
+    elif long_ratio < 42:
+        return "SHORT", 100 - long_ratio
+    return "NEUTRAL", 50
 
 
 # ─── Thesis Builder ───────────────────────────────────────────
@@ -133,7 +160,8 @@ def build_thesis(coin, entry_cfg):
     candles_15m = data.get("data", {}).get("candles", {}).get("15m", [])
     candles_1h = data.get("data", {}).get("candles", {}).get("1h", [])
     candles_4h = data.get("data", {}).get("candles", {}).get("4h", [])
-    funding = float(data.get("data", {}).get("funding", 0))
+    asset_ctx = data.get("data", {}).get("asset_context", data.get("data", {}))
+    funding = float(asset_ctx.get("funding", data.get("data", {}).get("funding", 0)))
 
     if len(candles_1h) < 8 or len(candles_4h) < 6:
         return None
@@ -238,7 +266,8 @@ def evaluate_held_position(coin, direction, entry_cfg):
 
     candles_1h = data.get("data", {}).get("candles", {}).get("1h", [])
     candles_4h = data.get("data", {}).get("candles", {}).get("4h", [])
-    funding = float(data.get("data", {}).get("funding", 0))
+    asset_ctx = data.get("data", {}).get("asset_context", data.get("data", {}))
+    funding = float(asset_ctx.get("funding", data.get("data", {}).get("funding", 0)))
 
     if len(candles_4h) < 6:
         return True, ["insufficient_data_hold"]
