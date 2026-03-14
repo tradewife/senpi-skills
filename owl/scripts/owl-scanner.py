@@ -46,6 +46,8 @@ def get_all_assets():
         instruments = instruments.get("instruments", [])
     assets = []
     for inst in instruments:
+        if not isinstance(inst, dict):
+            continue
         coin = inst.get("coin") or inst.get("name", "")
         oi = float(inst.get("openInterest", 0))
         mark_px = float(inst.get("markPx", inst.get("midPx", 0)))
@@ -67,12 +69,23 @@ def get_sm_positioning(coin):
         return 50, 0
     markets = data.get("data", data)
     if isinstance(markets, dict):
-        markets = markets.get("markets", markets.get("leaderboard", []))
+        markets = markets.get("markets", markets.get("leaderboard", markets))
+    if isinstance(markets, dict):
+        markets = markets.get("markets", [])
     for m in markets:
-        if m.get("coin", m.get("asset", "")) == coin:
-            long_pct = float(m.get("longPct", m.get("pctOfGainsLong", 50)))
-            trader_count = int(m.get("traderCount", m.get("numTraders", 0)))
-            return long_pct, trader_count
+        if not isinstance(m, dict):
+            continue
+        token = m.get("token", m.get("coin", m.get("asset", "")))
+        if token != coin:
+            continue
+        # API returns separate long/short entries per asset
+        direction = m.get("direction", "").lower()
+        pct = float(m.get("pct_of_top_traders_gain", m.get("longPct", 0)))
+        trader_count = int(m.get("trader_count", m.get("traderCount", 0)))
+        if direction == "long":
+            return pct * 100, trader_count  # scale to 0-100 range
+        elif direction == "short":
+            return (1 - pct) * 100, trader_count  # invert for short
     return 50, 0
 
 
@@ -147,7 +160,8 @@ def detect_exhaustion(coin, crowd_direction, exhaustion_cfg):
 
     candles_1h = data.get("data", {}).get("candles", {}).get("1h", [])
     candles_4h = data.get("data", {}).get("candles", {}).get("4h", [])
-    funding = float(data.get("data", {}).get("funding", 0))
+    asset_ctx = data.get("data", {}).get("asset_context", data.get("data", {}))
+    funding = float(asset_ctx.get("funding", data.get("data", {}).get("funding", 0)))
 
     if len(candles_1h) < 12 or len(candles_4h) < 6:
         return 0, []
