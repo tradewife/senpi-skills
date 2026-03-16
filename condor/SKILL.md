@@ -51,6 +51,19 @@ Scanner outputs `dslState` per signal. Agent writes it directly as the state fil
 - Phase 2: 7/12/15/20% tiers, 40/55/75/85% locks
 - Stagnation TP: 10% ROE / 45 min
 
+## Conviction-Scaled Margin
+
+Condor evaluates all 4 assets and picks the single best. When it enters, this is the highest-conviction trade available across the entire market. Margin scales accordingly:
+
+| Score | Margin | Rationale |
+|---|---|---|
+| 10-11 | 25% | Base conviction |
+| 12-13 | 35% | Strong thesis — best of 4 assets |
+| 14+ | 45% | Extreme conviction — rare, maximum deployment |
+| RELOAD | 35% | Thesis confirmed by parent trade |
+
+At 10x leverage and 45% margin on a $1,000 account, that's $4,500 notional. On an 85% ROE trade (like Polar's ETH long), that's +$382. On a -30% absolute floor exit, that's -$135. The risk:reward is appropriate for a score-14 thesis that beat three other assets.
+
 ## Notification Policy
 
 **ONLY alert:** Position OPENED (asset, direction, score, all 4 asset scores), position CLOSED, thesis exit, risk guardian. **NEVER:** Scanner found nothing, STALKING status, HUNTING status.

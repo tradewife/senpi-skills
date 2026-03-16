@@ -567,7 +567,7 @@ def run():
                 asset = exit_state["exitAsset"]
                 direction = exit_state["exitDirection"]
                 leverage = min(config.get("leverage", {}).get("default", 10), MAX_LEVERAGE)
-                margin = round(account_value * entry_cfg.get("marginPctBase", 0.25), 2)
+                margin = round(account_value * 0.35, 2)  # Reload at 35% — thesis confirmed by parent
 
                 state["currentMode"] = "RIDING"
                 state["activeAsset"] = asset
@@ -632,15 +632,15 @@ def run():
     theses.sort(key=lambda t: t["score"], reverse=True)
     best = theses[0]
 
-    # Leverage and margin
+    # Leverage and margin — Condor commits to ONE position across 4 assets.
+    # When it enters, this is the best thesis available. Scale margin by conviction.
     leverage = min(config.get("leverage", {}).get("default", 10), MAX_LEVERAGE)
-    base_margin_pct = entry_cfg.get("marginPctBase", 0.25)
     if best["score"] >= 14:
-        margin_pct = base_margin_pct * 1.5
+        margin_pct = 0.45  # Extreme conviction — best of 4 assets, all aligned
     elif best["score"] >= 12:
-        margin_pct = base_margin_pct * 1.25
+        margin_pct = 0.35  # Strong thesis across all 4 scored
     else:
-        margin_pct = base_margin_pct
+        margin_pct = 0.25  # Base conviction
     margin = round(account_value * margin_pct, 2)
 
     state["currentMode"] = "RIDING"
